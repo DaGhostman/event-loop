@@ -1,0 +1,11 @@
+{
+    "name": "onion/event-loop",
+    "autoload": {
+        "psr-4": {
+            "Onion\\Framework\\" : "src/"
+        },
+        "files": [
+            "src/functions.php"
+        ]
+    }
+}
