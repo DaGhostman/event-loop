@@ -1,14 +1,14 @@
 <?php
 
-use function Onion\Framework\Common\Loop\after;
-use function Onion\Framework\Common\Loop\coroutine;
-use function Onion\Framework\Common\Loop\defer;
-use function Onion\Framework\Common\Loop\loop;
-use function Onion\Framework\Common\Loop\timer;
+use function Onion\Framework\EventLoop\after;
+use function Onion\Framework\EventLoop\coroutine;
+use function Onion\Framework\EventLoop\defer;
+use function Onion\Framework\EventLoop\loop;
+use function Onion\Framework\EventLoop\timer;
 
 require __DIR__ . '/../vendor/autoload.php';
 
-$timer = timer(1, function () {
+$timer = timer(1.0, function () {
     echo time() . PHP_EOL;
 
     coroutine(function () {
@@ -20,7 +20,7 @@ $timer = timer(1, function () {
     });
 });
 
-after(3, function () use ($timer) {
+after(3.0, function () use ($timer) {
     echo "Stoping timer after 3 seconds\n";
     $timer->stop();
 });

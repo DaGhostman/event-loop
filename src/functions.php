@@ -1,7 +1,6 @@
 <?php
 namespace Onion\Framework\EventLoop;
 
-use Onion\Framework\EventLoop\Descriptor;
 use Onion\Framework\EventLoop\Loop;
 
 
@@ -15,52 +14,48 @@ if (!function_exists(__NAMESPACE__ . '\loop')) {
         return $loop;
     }
 
+    function &scheduler(bool $newInstance = false): Scheduler
+    {
+        static $scheduler = null;
+        if ($newInstance || $scheduler === null) {
+            $scheduler = new Scheduler(loop());
+        }
+
+        return $scheduler;
+    }
+
     if (!function_exists(__NAMESPACE__ . '\coroutine')) {
-        function coroutine(\Closure $callback)
+        function coroutine(\Closure $callback): void
         {
-            return loop()->push($callback);
+            scheduler()->task($callback);
         }
     }
 
     if (!function_exists(__NAMESPACE__ . '\after')) {
-        function after(int $interval, \Closure $callback)
+        function after(float $interval, \Closure $callback)
         {
-            return loop()->delay($interval, $callback);
+            return scheduler()->delay($interval, $callback);
         }
     }
 
     if (!function_exists(__NAMESPACE__ . '\timer')) {
-        function timer(int $interval, \Closure $callback)
+        function timer(float $interval, \Closure $callback)
         {
-            return loop()->interval($interval, $callback);
+            return scheduler()->interval($interval, $callback);
         }
     }
 
     if (!function_exists(__NAMESPACE__ . '\defer')) {
         function defer(\Closure $callback)
         {
-            return loop()->defer($callback);
+            return scheduler()->defer($callback);
         }
     }
 
     if (!function_exists(__NAMESPACE__ . '\io')) {
-        function io($resource, ?\Closure $read = null, ?\Closure $write = null, ?\Closure $error = null)
+        function io($resource, $timeout, ?\Closure $read = null, ?\Closure $write = null, ?\Closure $error = null)
         {
-            $descriptor = new Descriptor($resource);
-
-            if ($read !== null) {
-                $descriptor->onRead($read);
-            }
-
-            if ($write !== null) {
-                $descriptor->onWrite($write);
-            }
-
-            if ($error !== null) {
-                $descriptor->onError($error);
-            }
-
-            return loop()->io($descriptor);
+            return scheduler()->io($resource, $timeout, $read, $write, $error);
         }
     }
 }
