@@ -14,11 +14,11 @@ if (!function_exists(__NAMESPACE__ . '\loop')) {
         return $loop;
     }
 
-    function &scheduler(bool $newInstance = false): Scheduler
+    function &scheduler(Loop $loop = null): Scheduler
     {
         static $scheduler = null;
-        if ($newInstance || $scheduler === null) {
-            $scheduler = new Scheduler(loop());
+        if ($scheduler === null || $loop !== null) {
+            $scheduler = new Scheduler($loop ?? loop());
         }
 
         return $scheduler;
