@@ -53,6 +53,11 @@ class Stream
         return rewind($this->resource);
     }
 
+    public function seek(int $position, int $kind = SEEK_SET)
+    {
+        return fseek($this->resource, $position, $kind) === 0;
+    }
+
     public function isClosed(): bool
     {
         return !is_resource($this->resource);
@@ -65,11 +70,19 @@ class Stream
 
     public function isReadable()
     {
+        if ($this->isLocal()) {
+            return fstat($this->resource)['is_readable'] ?? false;
+        }
+
         return $this->readable;
     }
 
     public function isWritable()
     {
+        if ($this->isLocal()) {
+            return fstat($this->resource)['is_writable'] ?? false;
+        }
+
         return $this->writable;
     }
 
