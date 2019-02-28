@@ -53,9 +53,9 @@ if (!function_exists(__NAMESPACE__ . '\loop')) {
     }
 
     if (!function_exists(__NAMESPACE__ . '\io')) {
-        function io($resource, $timeout, ?\Closure $read = null, ?\Closure $write = null, ?\Closure $error = null)
+        function io($resource, \Closure $callback)
         {
-            return scheduler()->io($resource, $timeout, $read, $write, $error);
+            return scheduler()->io($resource, $callback);
         }
     }
 }

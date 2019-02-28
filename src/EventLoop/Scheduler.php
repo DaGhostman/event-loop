@@ -2,9 +2,9 @@
 namespace Onion\Framework\EventLoop;
 
 use Closure;
+use Onion\Framework\EventLoop\Task\Descriptor;
 use Onion\Framework\EventLoop\Task\Task;
 use Onion\Framework\EventLoop\Task\Timer;
-use Onion\Framework\EventLoop\Task\Descriptor;
 
 
 class Scheduler
@@ -61,14 +61,10 @@ class Scheduler
         );
     }
 
-    public function io($resource, int $timeout, ?Closure $read = null, ?Closure $write = null, ?Closure $error = null)
+    public function io($resource, ?Closure $callback)
     {
         if (is_resource($resource)) {
-            $descriptor = new Descriptor($resource, $timeout);
-            $descriptor->onRead($read);
-            $descriptor->onWrite($write);
-            $descriptor->onError($error);
-
+            $descriptor = new Descriptor($resource, $callback);
             $this->loop->push($descriptor);
         }
     }
