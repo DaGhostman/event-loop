@@ -19,12 +19,20 @@ class SwooleScheduler implements SchedulerInterface
 
     public function interval(float $interval, Closure $callback)
     {
-        swoole_timer_tick((int) ($interval * 1000), $callback);
+        $interval = (int) ($interval * 1000);
+        if ($interval <= 0) {
+            $interval = 1;
+        }
+        swoole_timer_tick($interval, $callback);
     }
 
     public function delay(float $delay, Closure $callback)
     {
-        swoole_timer_after((int) ($delay * 1000), $callback);
+        $delay = (int) ($delay * 1000);
+        if ($delay <= 0) {
+            $delay = 1;
+        }
+        swoole_timer_after($delay, $callback);
     }
 
     public function io($resource, ?Closure $callback)
