@@ -62,6 +62,13 @@ class Loop implements Countable
         }
     }
 
+    public function kill()
+    {
+        while (!$this->queue->isEmpty()) {
+            $this->queue->dequeue();
+        }
+    }
+
     public function count()
     {
         return count($this->queue) && count($this->deferred);
