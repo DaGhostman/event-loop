@@ -4,7 +4,6 @@ namespace Onion\Framework\EventLoop;
 use Onion\Framework\EventLoop\Interfaces\LoopInterface;
 use Onion\Framework\EventLoop\Interfaces\SchedulerInterface;
 use Onion\Framework\EventLoop\Interfaces\TaskInterface;
-use Onion\Framework\EventLoop\Loop;
 use Onion\Framework\EventLoop\Scheduler\SwooleScheduler;
 
 if (!function_exists(__NAMESPACE__ . '\select')) {
@@ -33,7 +32,7 @@ if (!function_exists(__NAMESPACE__ . '\loop')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\scheduler')) {
-    function &scheduler(Loop $loop = null): SchedulerInterface
+    function &scheduler(LoopInterface $loop = null): SchedulerInterface
     {
         static $scheduler = null;
         if ($scheduler === null || $loop !== null) {
