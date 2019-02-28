@@ -43,8 +43,7 @@ timer(0.0, function () use ($plain) {
         return;
     }
 
-    $loop = loop(true);
-    scheduler($loop);
+    scheduler(loop(true));
 
     io($channel, function (Stream $stream) {
         $stream->rewind();
