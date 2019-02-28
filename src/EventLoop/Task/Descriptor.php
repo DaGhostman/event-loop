@@ -3,6 +3,7 @@ namespace Onion\Framework\EventLoop\Task;
 
 use Closure;
 use function Onion\Framework\EventLoop\coroutine;
+use function Onion\Framework\EventLoop\select;
 use Onion\Framework\EventLoop\Stream\Stream;
 
 class Descriptor extends Task
@@ -21,7 +22,7 @@ class Descriptor extends Task
             $read = [$resource];
             $write = [$resource];
 
-            if (stream_select($read, $write, $error, null) !== false) {
+            if (select($read, $write, $error, null) !== false) {
                 $stream = new Stream($resource, !empty($read), !empty($write));
 
                 yield coroutine(function () use ($callback, $stream) {
