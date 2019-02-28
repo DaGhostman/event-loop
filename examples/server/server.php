@@ -11,11 +11,11 @@ require __DIR__ . '/../../vendor/autoload.php';
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
-$context = stream_context_create(['ssl' => [
-    'local_cert' => __DIR__ . '/localhost.cert',
-    'local_pk' => __DIR__ . '/localhost.key',
-    'allow_self_signed' => true,
-]]);
+// $context = stream_context_create(['ssl' => [
+//     'local_cert' => __DIR__ . '/localhost.cert',
+//     'local_pk' => __DIR__ . '/localhost.key',
+//     'allow_self_signed' => true,
+// ]]);
 
 $port = 1337;
 $plain = stream_socket_server("tcp://0.0.0.0:$port", $errNo, $errStr);
