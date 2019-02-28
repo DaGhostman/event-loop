@@ -96,12 +96,12 @@ class Stream
 
     public function rewind()
     {
-        return rewind($this->resource);
+        return @rewind($this->resource);
     }
 
     public function seek(int $position, int $kind = SEEK_SET)
     {
-        return fseek($this->resource, $position, $kind) === 0;
+        return @fseek($this->resource, $position, $kind) === 0;
     }
 
     public function isClosed(): bool
@@ -116,24 +116,18 @@ class Stream
 
     public function isReadable()
     {
-        if ($this->isLocal()) {
-            $mode = stream_get_meta_data($this->resource)['mode'];
+        $mode = stream_get_meta_data($this->resource)['mode'] ?? '';
+        $readable = in_array($mode, self::READABLE_MODES, true);
 
-            return in_array($mode, self::READABLE_MODES, true);
-        }
-
-        return $this->readable;
+        return $readable && $this->readable;
     }
 
     public function isWritable()
     {
-        if ($this->isLocal()) {
-            $mode = stream_get_meta_data($this->resource)['mode'];
+        $mode = stream_get_meta_data($this->resource)['mode'] ?? '';
+        $writable = in_array($mode, self::WRITABLE_MODES, true);
 
-            return in_array($mode, self::WRITABLE_MODES, true);
-        }
-
-        return $this->writable;
+        return $writable && $this->writable;
     }
 
     public function detach()
