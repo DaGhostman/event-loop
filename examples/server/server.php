@@ -18,7 +18,7 @@ error_reporting(E_ALL);
 // ]]);
 
 $port = 1337;
-$plain = stream_socket_server("tcp://0.0.0.0:$port", $errNo, $errStr);
+$plain = stream_socket_server("tcp://127.0.0.1:$port", $errNo, $errStr);
 if (!$plain) throw new Exception($errStr, $errNo);
 // $secure = stream_socket_server("tcp://0.0.0.0:3$port", $errNo, $errStr, STREAM_SERVER_BIND | STREAM_SERVER_LISTEN, $context);
 // if (!$secure) throw new Exception($errStr, $errNo);
