@@ -2,14 +2,12 @@
 namespace Onion\Framework\EventLoop;
 
 use Countable;
+use Onion\Framework\EventLoop\Interfaces\LoopInterface;
 use Onion\Framework\EventLoop\Interfaces\TaskInterface;
 
 
-class Loop implements Countable
+class Loop implements Countable, LoopInterface
 {
-    public const TASK_IMMEDIATE = 0;
-    public const TASK_DEFERRED = 1;
-
     private $queue;
     private $deferred;
 
@@ -61,12 +59,12 @@ class Loop implements Countable
         }
     }
 
-    public function stop()
+    public function stop(): void
     {
         $this->stopped = true;
     }
 
-    public function kill()
+    public function kill(): void
     {
         while (!$this->queue->isEmpty()) {
             $this->queue->dequeue();

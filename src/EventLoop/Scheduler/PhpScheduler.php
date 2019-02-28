@@ -1,13 +1,15 @@
 <?php
-namespace Onion\Framework\EventLoop;
+namespace Onion\Framework\EventLoop\Scheduler;
 
 use Closure;
+use Onion\Framework\EventLoop\Interfaces\LoopInterface as Loop;
+use Onion\Framework\EventLoop\Interfaces\SchedulerInterface;
 use Onion\Framework\EventLoop\Task\Descriptor;
 use Onion\Framework\EventLoop\Task\Task;
 use Onion\Framework\EventLoop\Task\Timer;
 
 
-class Scheduler
+class PhpScheduler implements SchedulerInterface
 {
     /** @var Loop $loop */
     private $loop;
