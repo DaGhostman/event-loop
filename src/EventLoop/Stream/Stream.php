@@ -3,6 +3,9 @@ namespace Onion\Framework\EventLoop\Stream;
 
 class Stream
 {
+    private const READABLE_MODES = ['r', 'r+', 'w+', 'a+', 'x+', 'c+'];
+    private const WRITABLE_MODES = ['r+', 'w', 'w+', 'a', 'a+', 'x', 'x+', 'c', 'c+'];
+
     private $resource;
     private $readable;
     private $writable;
@@ -71,7 +74,9 @@ class Stream
     public function isReadable()
     {
         if ($this->isLocal()) {
-            return fstat($this->resource)['is_readable'] ?? false;
+            $mode = stream_get_meta_data($this->resource)['mode'];
+
+            return in_array($mode, self::READABLE_MODES, true);
         }
 
         return $this->readable;
@@ -80,7 +85,9 @@ class Stream
     public function isWritable()
     {
         if ($this->isLocal()) {
-            return fstat($this->resource)['is_writable'] ?? false;
+            $mode = stream_get_meta_data($this->resource)['mode'];
+
+            return in_array($mode, self::WRITABLE_MODES, true);
         }
 
         return $this->writable;
