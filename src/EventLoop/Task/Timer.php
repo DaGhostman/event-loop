@@ -1,5 +1,5 @@
 <?php
-namespace Onion\Framework\EventLoop;
+namespace Onion\Framework\EventLoop\Task;
 
 class Timer extends Task
 {
@@ -11,9 +11,9 @@ class Timer extends Task
     private $tick;
     private $stopped = false;
 
-    public function __construct(\Generator $generator, int $interval, int $options = self::TYPE_INTERVAL)
+    public function __construct(\Closure $closure, float $interval, int $options = self::TYPE_INTERVAL)
     {
-        parent::__construct($generator);
+        parent::__construct($closure);
         $this->interval = (double) $interval;
         $this->tick = microtime(true) + $this->interval;
         $this->options = $options;
@@ -39,22 +39,7 @@ class Timer extends Task
         }
     }
 
-    public function continue()
-    {
-        if (microtime(true) >= $this->tick) {
-            $value = parent::continue();
-
-            if (($this->options & self::TYPE_INTERVAL) == self::TYPE_INTERVAL) {
-                $this->tick += $this->interval;
-            } else {
-                $this->stop();
-            }
-
-            return $value;
-        }
-    }
-
-    public function finished()
+    public function finished(): bool
     {
         return $this->stopped;
     }

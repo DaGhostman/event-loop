@@ -1,15 +1,17 @@
 <?php
-namespace Onion\Framework\EventLoop;
+namespace Onion\Framework\EventLoop\Task;
 
-class Task
+use Onion\Framework\EventLoop\Interfaces\TaskInterface;
+
+class Task implements TaskInterface
 {
-    private $started;
+    private $started = false;
     private $exception;
     private $callback;
 
-    public function __construct(\Generator $closure)
+    public function __construct(\Closure $closure)
     {
-        $this->callback = $this->wrap($closure);
+        $this->callback = $this->wrap($closure());
     }
 
     private function wrap(\Generator $generator)
@@ -41,24 +43,24 @@ class Task
 
     public function run()
     {
+        $this->started = true;
         if (!$this->started()) {
-            $this->started = true;
-            return $this->callback->current();
+            $this->callback->current();
         } else {
-            return $this->callback->next();
+            $this->callback->next();
         }
     }
 
-    public function throw(\Throwable $ex) {
+    public function throw(\Throwable $ex): void {
         $this->exception = $ex;
     }
 
-    public function finished()
+    public function finished(): bool
     {
         return !$this->callback->valid();
     }
 
-    public function started()
+    public function started(): bool
     {
         return $this->started;
     }

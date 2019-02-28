@@ -1,12 +1,17 @@
 <?php
 namespace Onion\Framework\EventLoop;
 
-class Loop
+use Countable;
+use Onion\Framework\EventLoop\Interfaces\LoopInterface;
+use Onion\Framework\EventLoop\Interfaces\TaskInterface;
+
+
+class Loop implements Countable, LoopInterface
 {
     private $queue;
     private $deferred;
 
-    private $streams = [];
+    private $stopped = false;
 
     public function __construct()
     {
@@ -25,65 +30,15 @@ class Loop
         }
     }
 
-    public function interval(int $interval, \Closure $callback)
+    public function push(TaskInterface $task, int $type = self::TASK_IMMEDIATE): TaskInterface
     {
-        $generator = function () use ($callback) {
-            for (;;) {
-                yield $callback();
-            }
-        };
+        /** @var \SplQueue $queue */
+        $queue = ($type === self::TASK_IMMEDIATE) ?
+            $this->queue : $this->deferred;
 
-        $timer = new Timer(
-            $generator(),
-            $interval,
-            Timer::TYPE_INTERVAL
-        );
+        $queue->enqueue($task);
 
-        $this->queue->enqueue($timer);
-
-        return $timer;
-    }
-
-    public function delay(int $interval, \Closure $callback)
-    {
-        $generator = function () use ($callback) {
-            for (;;) {
-                yield $callback();
-            }
-        };
-
-        $timer = new Timer(
-            $generator(),
-            $interval,
-            Timer::TYPE_DELAY
-        );
-
-        $this->queue->enqueue($timer);
-
-        return $timer;
-    }
-
-    public function push(\Closure $callback)
-    {
-        $generator = function () use ($callback) {
-            yield $callback();
-        };
-
-        $this->queue->enqueue(new Task($generator()));
-    }
-
-    public function defer(\Closure $callback)
-    {
-        $generator = function () use ($callback) {
-            yield $callback();
-        };
-
-        $this->deferred->enqueue(new Task($generator()));
-    }
-
-    public function io(Descriptor $poll)
-    {
-        $this->queue->enqueue($poll);
+        return $task;
     }
 
     private function run(\SplQueue $queue)
@@ -95,14 +50,29 @@ class Loop
             try {
                 $task->run();
             } catch (\Throwable $ex) {
-                var_dump($ex);
                 $task->throw($ex);
-                continue;
             }
 
-            if (!$task->finished()) {
+            if (!$task->finished() && !$this->stopped) {
                 $queue->enqueue($task);
             }
         }
+    }
+
+    public function stop(): void
+    {
+        $this->stopped = true;
+    }
+
+    public function kill(): void
+    {
+        while (!$this->queue->isEmpty()) {
+            $this->queue->dequeue();
+        }
+    }
+
+    public function count()
+    {
+        return count($this->queue) && count($this->deferred);
     }
 }
