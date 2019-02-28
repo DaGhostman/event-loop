@@ -39,21 +39,6 @@ class Timer extends Task
         }
     }
 
-    public function continue()
-    {
-        if (microtime(true) >= $this->tick) {
-            $value = parent::continue();
-
-            if (($this->options & self::TYPE_INTERVAL) == self::TYPE_INTERVAL) {
-                $this->tick += $this->interval;
-            } else {
-                $this->stop();
-            }
-
-            return $value;
-        }
-    }
-
     public function finished(): bool
     {
         return $this->stopped;
