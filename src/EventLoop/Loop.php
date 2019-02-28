@@ -13,7 +13,7 @@ class Loop implements Countable
     private $queue;
     private $deferred;
 
-    private $tasks = 0;
+    private $stopped = false;
 
     public function __construct()
     {
@@ -39,7 +39,6 @@ class Loop implements Countable
             $this->queue : $this->deferred;
 
         $queue->enqueue($task);
-        $this->tasks++;
 
         return $task;
     }
@@ -56,10 +55,15 @@ class Loop implements Countable
                 $task->throw($ex);
             }
 
-            if (!$task->finished()) {
+            if (!$task->finished() && !$this->stopped) {
                 $queue->enqueue($task);
             }
         }
+    }
+
+    public function stop()
+    {
+        $this->stopped = true;
     }
 
     public function kill()
