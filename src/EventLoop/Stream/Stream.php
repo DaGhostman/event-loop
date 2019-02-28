@@ -3,8 +3,51 @@ namespace Onion\Framework\EventLoop\Stream;
 
 class Stream
 {
-    private const READABLE_MODES = ['r', 'r+', 'w+', 'a+', 'x+', 'c+'];
-    private const WRITABLE_MODES = ['r+', 'w', 'w+', 'a', 'a+', 'x', 'x+', 'c', 'c+'];
+    private const READABLE_MODES = [
+        'r',
+        'rb',
+        'rt',
+        'r+',
+        'r+b',
+        'r+t',
+        'w+',
+        'w+b',
+        'w+t',
+        'a+',
+        'a+b',
+        'a+t',
+        'x+',
+        'x+b',
+        'x+t',
+        'c+',
+        'c+b',
+        'c+t',
+    ];
+
+    private const WRITABLE_MODES = [
+        'r+',
+        'r+b',
+        'r+t',
+        'w',
+        'wb',
+        'w+',
+        'w+b',
+        'w+t',
+        'a',
+        'ab',
+        'a+',
+        'a+b',
+        'x',
+        'xb',
+        'x+',
+        'x+b',
+        'x+t',
+        'c',
+        'cb',
+        'c+',
+        'c+b',
+        'c+t',
+    ];
 
     private $resource;
     private $readable;
