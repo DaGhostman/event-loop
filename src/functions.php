@@ -42,3 +42,17 @@ if (!function_exists(__NAMESPACE__ . '\io')) {
         return scheduler()->io($resource, $callback);
     }
 }
+
+if (!function_exists(__NAMESPACE__ . '\attach')) {
+    function attach($resource, ?\Closure $onRead = null, ?\Closure $onWrite = null)
+    {
+        return scheduler()->attach($resource, $onRead, $onWrite);
+    }
+}
+
+if (!function_exists(__NAMESPACE__ . '\detach')) {
+    function detach($resource)
+    {
+        return scheduler()->detach($resource);
+    }
+}
