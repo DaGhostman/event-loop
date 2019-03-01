@@ -7,7 +7,5 @@
         "files": [
             "src/functions.php"
         ]
-    },
-    "require-dev": {
     }
 }
