@@ -80,6 +80,11 @@ class Stream
         return ftell($this->resource);
     }
 
+    public function lock(int $lock = LOCK_EX)
+    {
+        return @flock($this->resource, $lock);
+    }
+
     public function close(): bool
     {
         return !$this->isClosed() ? @fclose($this->resource) : true;
