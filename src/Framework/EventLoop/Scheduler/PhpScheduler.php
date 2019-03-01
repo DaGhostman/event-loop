@@ -71,4 +71,14 @@ class PhpScheduler implements SchedulerInterface
         }
     }
 
+    public function attach($resource, ?Closure $onRead = null, ?Closure $onWrite = null): bool
+    {
+        return $this->loop->attach($resource, $onRead, $onWrite);
+    }
+
+    public function detach($resource): bool
+    {
+        return $this->loop->detach($resource);
+    }
+
 }

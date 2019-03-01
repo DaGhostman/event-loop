@@ -1,13 +1,21 @@
 <?php
 namespace Onion\Framework\EventLoop;
 
+use Closure;
 use Countable;
 use Onion\Framework\EventLoop\Interfaces\LoopInterface;
 use Onion\Framework\EventLoop\Interfaces\TaskInterface;
-
+use Onion\Framework\EventLoop\Stream\Stream;
+use Onion\Framework\EventLoop\Task\Timer;
 
 class Loop implements Countable, LoopInterface
 {
+    private $readStreams = [];
+    private $writeStreams = [];
+    private $readListeners = [];
+    private $writeListeners = [];
+
+    private $timers;
     private $queue;
     private $deferred;
 
@@ -16,34 +24,110 @@ class Loop implements Countable, LoopInterface
     public function __construct()
     {
         $this->queue = new \SplQueue();
+        $this->timers = new \SplQueue();
         $this->deferred = new \SplQueue();
+
         $this->queue->setIteratorMode(\SplQueue::IT_MODE_DELETE);
+        $this->timers->setIteratorMode(\SplQueue::IT_MODE_DELETE);
         $this->deferred->setIteratorMode(\SplQueue::IT_MODE_DELETE);
     }
 
     public function start(): void
     {
-        try {
-            $this->run($this->queue);
-        } finally {
-            $this->run($this->deferred);
+        while (!$this->stopped) {
+
+            try { // Protect excessive loops by checking count
+                $this->tick($this->timers, count($this->timers));
+                $this->tick($this->queue, count($this->queue));
+            } finally {
+                $this->tick($this->deferred, PHP_INT_MAX); // We have to run all deferred
+            }
+
+            $reads = $this->readStreams;
+            $writes = $this->writeStreams;
+            $errors = [];
+
+            if (@select($reads, $writes, $errors, null)) {
+                foreach ($reads as $read) {
+                    $fd = (int) $read;
+
+                    $socket = new Stream($read);
+                    ($this->readListeners[$fd])($socket);
+                }
+
+                foreach ($writes as $write) {
+                    $fd = (int) $write;
+
+                    $socket = new Stream($write);
+                    ($this->writeListeners[$fd])($socket);
+                }
+            }
+
+        }
+
+
+    }
+
+    public function attach($resource, ?Closure $onRead = null, ?Closure $onWrite = null): bool
+    {
+        $fd = (int) $resource;
+
+        if ($onRead === null && $onWrite === null) {
+            return false;
+        }
+
+        if (!isset($this->streams[$fd])) {
+            if ($onRead !== null) {
+                $this->readStreams[$fd] = $resource;
+                $this->readListeners[$fd] = $onRead;
+            }
+
+            if ($onWrite !== null) {
+                $this->writeStreams[$fd] = $resource;
+                $this->writeListeners[$fd] = $onWrite;
+            }
+        }
+
+        return true;
+    }
+
+    public function detach($resource): bool
+    {
+        $fd = (int) $resource;
+
+        if (!isset($this->readStreams[$fd]) && !issset($this->writeStreams)) {
+            return false;
+        }
+
+        if (isset($this->readStreams[$fd])) {
+            unset($this->readStreams[$fd]);
+            unset($this->readListeners[$fd]);
+        }
+
+        if (isset($this->writeStreams[$fd])) {
+            unset($this->writeStreams[$fd]);
+            unset($this->writeListeners[$fd]);
         }
     }
 
     public function push(TaskInterface $task, int $type = self::TASK_IMMEDIATE): TaskInterface
     {
-        /** @var \SplQueue $queue */
-        $queue = ($type === self::TASK_IMMEDIATE) ?
-            $this->queue : $this->deferred;
+        if ($task instanceof Timer) {
+            $this->timers->enqueue($task);
+        } else {
+            /** @var \SplQueue $queue */
+            $queue = ($type === self::TASK_IMMEDIATE) ?
+                $this->queue : $this->deferred;
 
-        $queue->enqueue($task);
+            $queue->enqueue($task);
+        }
 
         return $task;
     }
 
-    private function run(\SplQueue $queue)
+    private function tick(\SplQueue $queue, int $max = 1)
     {
-        while(!$queue->isEmpty()) {
+        while(!$queue->isEmpty() && $max--) {
             /** @var Task $task */
             $task = $queue->dequeue();
 
@@ -62,13 +146,6 @@ class Loop implements Countable, LoopInterface
     public function stop(): void
     {
         $this->stopped = true;
-    }
-
-    public function kill(): void
-    {
-        while (!$this->queue->isEmpty()) {
-            $this->queue->dequeue();
-        }
     }
 
     public function count()

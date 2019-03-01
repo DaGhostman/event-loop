@@ -3,6 +3,7 @@ namespace Onion\Framework\EventLoop\Scheduler;
 
 use Closure;
 use Onion\Framework\EventLoop\Interfaces\SchedulerInterface;
+use Onion\Framework\EventLoop\Stream\Stream;
 use Onion\Framework\EventLoop\Task\Descriptor;
 use Onion\Framework\EventLoop\Task\Timer;
 
@@ -70,5 +71,39 @@ class SwooleScheduler implements SchedulerInterface
                 $descriptor->run();
             });
         }
+    }
+
+    public function attach($resource, ?Closure $onRead = null, ?Closure $onWrite = null): bool
+    {
+        if (!$resource || !is_resource($resource)) {
+            return true;
+        }
+
+        return swoole_event_add($resource, function ($resource) use ($onRead) {
+            if ($onRead === null) {
+                return;
+            }
+
+            $stream = new Stream($resource);
+
+            return $onRead($stream);
+        }, function ($resource) use ($onWrite) {
+            if ($onWrite === null) {
+                return;
+            }
+
+            $stream = new Stream($resource);
+
+            return $onWrite($stream);
+        });
+    }
+
+    public function detach($resource): bool
+    {
+        if (!$resource || !is_resource($resource)) {
+            return true;
+        }
+
+        return swoole_event_del($resource);
     }
 }
