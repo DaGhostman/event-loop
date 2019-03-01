@@ -1,5 +1,6 @@
 {
     "name": "onion/event-loop",
+    "license": "MIT",
     "autoload": {
         "psr-4": {
             "Onion\\Framework\\" : "src/"
