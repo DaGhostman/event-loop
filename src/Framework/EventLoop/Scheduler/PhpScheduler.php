@@ -37,7 +37,7 @@ class PhpScheduler implements SchedulerInterface
         $this->loop->push(new Task($worker), Loop::TASK_DEFERRED);
     }
 
-    public function interval(float $interval, Closure $callback) {
+    public function interval(int $interval, Closure $callback) {
         $worker = function () use ($callback) {
             for (;;) {
                 yield $callback();
@@ -50,7 +50,7 @@ class PhpScheduler implements SchedulerInterface
         );
     }
 
-    public function delay(float $delay, Closure $callback) {
+    public function delay(int $delay, Closure $callback) {
         $worker = function () use ($callback) {
             for (;;) {
                 yield $callback();

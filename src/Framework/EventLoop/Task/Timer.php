@@ -14,8 +14,8 @@ class Timer extends Task
     public function __construct(\Closure $closure, float $interval, int $options = self::TYPE_INTERVAL)
     {
         parent::__construct($closure);
-        $this->interval = (double) $interval;
-        $this->tick = microtime(true) + $this->interval;
+        $this->interval = $interval;
+        $this->tick = $this->getMilliseconds() + $this->interval;
         $this->options = $options;
     }
 
@@ -26,7 +26,7 @@ class Timer extends Task
 
     public function run()
     {
-        if (microtime(true) >= $this->tick) {
+        if ($this->getMilliseconds() >= $this->tick) {
             $value = parent::run();
 
             if (($this->options & self::TYPE_INTERVAL) == self::TYPE_INTERVAL) {
@@ -42,5 +42,10 @@ class Timer extends Task
     public function finished(): bool
     {
         return $this->stopped;
+    }
+
+    private function getMilliseconds(): int
+    {
+        return (int) round(microtime(true) * 1000);
     }
 }

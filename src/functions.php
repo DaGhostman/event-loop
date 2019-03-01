@@ -16,14 +16,14 @@ if (!function_exists(__NAMESPACE__ . '\coroutine')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\after')) {
-    function after(float $interval, \Closure $callback)
+    function after(int $interval, \Closure $callback)
     {
         return scheduler()->delay($interval, $callback);
     }
 }
 
 if (!function_exists(__NAMESPACE__ . '\timer')) {
-    function timer(float $interval, \Closure $callback)
+    function timer(int $interval, \Closure $callback)
     {
         return scheduler()->interval($interval, $callback);
     }

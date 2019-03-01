@@ -19,12 +19,8 @@ class SwooleScheduler implements SchedulerInterface
         swoole_event_defer($closure);
     }
 
-    public function interval(float $interval, Closure $callback)
+    public function interval(int $interval, Closure $callback)
     {
-        $interval = (int) ($interval * 1000);
-        if ($interval <= 0) {
-            $interval = 1;
-        }
         $timer = swoole_timer_tick($interval, $callback);
 
         return new class($timer) extends Timer {
@@ -41,12 +37,8 @@ class SwooleScheduler implements SchedulerInterface
         };
     }
 
-    public function delay(float $delay, Closure $callback)
+    public function delay(int $delay, Closure $callback)
     {
-        $delay = (int) ($delay * 1000);
-        if ($delay <= 0) {
-            $delay = 1;
-        }
         $timer = swoole_timer_after($delay, $callback);
 
         return new class($timer) extends Timer {
