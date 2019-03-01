@@ -18,7 +18,7 @@ $scheduler = scheduler();
 stream_set_blocking($plain, 0);
 
 echo "Starting server at port $port...\n";
-timer(0.0, function () use ($plain) {
+timer(1, function () use ($plain) {
     $channel = @stream_socket_accept($plain, 0);
 
     if (!$channel || !is_resource($channel)) {
