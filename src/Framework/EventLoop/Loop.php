@@ -95,7 +95,7 @@ class Loop implements Countable, LoopInterface
     {
         $fd = (int) $resource;
 
-        if (!isset($this->readStreams[$fd]) && !issset($this->writeStreams)) {
+        if (!isset($this->readStreams[$fd]) && !isset($this->writeStreams)) {
             return false;
         }
 
@@ -108,6 +108,8 @@ class Loop implements Countable, LoopInterface
             unset($this->writeStreams[$fd]);
             unset($this->writeListeners[$fd]);
         }
+
+        return true;
     }
 
     public function push(TaskInterface $task, int $type = self::TASK_IMMEDIATE): TaskInterface
