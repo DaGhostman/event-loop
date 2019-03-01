@@ -13,9 +13,9 @@ if (!function_exists(__NAMESPACE__ . '\select')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\loop')) {
-    function &loop(bool $newInstance = false): LoopInterface {
+    function &loop(): LoopInterface {
         static $loop = null;
-        if ($newInstance || $loop === null) {
+        if ($loop === null) {
             $loop = new class implements LoopInterface {
                 public function start(): void {}
                 public function stop(): void {}
@@ -34,11 +34,11 @@ if (!function_exists(__NAMESPACE__ . '\loop')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\scheduler')) {
-    function &scheduler(LoopInterface $loop = null): SchedulerInterface
+    function &scheduler(): SchedulerInterface
     {
         static $scheduler = null;
-        if ($scheduler === null || $loop !== null) {
-            $scheduler = new SwooleScheduler($loop ?? loop());
+        if ($scheduler === null) {
+            $scheduler = new SwooleScheduler(loop());
         }
 
         return $scheduler;
