@@ -20,6 +20,8 @@ if (!function_exists(__NAMESPACE__ . '\loop')) {
                 public function start(): void {}
                 public function stop(): void {}
                 public function kill(): void {}
+                public function attach($resource, ?\Closure $onRead = null, ?\Closure $onWrite = null): bool {}
+                public function detach($resource): bool {}
                 public function push(TaskInterface $task, int $type = LoopInterface::TASK_IMMEDIATE): TaskInterface
                 {
                     return $task;
