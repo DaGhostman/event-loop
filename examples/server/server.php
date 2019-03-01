@@ -23,10 +23,10 @@ if (!$plain) throw new Exception($errStr, $errNo);
 // $secure = stream_socket_server("tcp://0.0.0.0:3$port", $errNo, $errStr, STREAM_SERVER_BIND | STREAM_SERVER_LISTEN, $context);
 // if (!$secure) throw new Exception($errStr, $errNo);
 $scheduler = scheduler();
+stream_set_blocking($plain, 0);
 
 echo "Starting server at port $port...\n";
 timer(0.0, function () use ($plain) {
-    stream_set_blocking($plain, 0);
     // stream_set_blocking($secure, 0);
     $channel = @stream_socket_accept($plain, 0);
     // if (!$channel) {
