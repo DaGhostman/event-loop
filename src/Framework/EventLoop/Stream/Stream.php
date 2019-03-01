@@ -12,7 +12,7 @@ class Stream
 
     public function line(): ?string
     {
-        $result = @fgets($this->resource, $size);
+        $result = @fgets($this->resource);
         return $result !== false ? $result : null;
     }
 
