@@ -13,7 +13,20 @@ class Timer extends Task
 
     public function __construct(\Closure $closure, float $interval, int $options = self::TYPE_INTERVAL)
     {
-        parent::__construct($closure);
+        $func = function () use ($closure) {
+            for (;;) {
+                if ($this->getMilliseconds() >= $this->tick && !$this->stopped) {
+                    yield $closure();
+
+                    if (($this->options & self::TYPE_INTERVAL) === self::TYPE_INTERVAL) {
+                        $this->tick += $this->interval;
+                    } else {
+                        $this->stop();
+                    }
+                }
+            }
+        };
+        parent::__construct($func);
         $this->interval = $interval;
         $this->tick = $this->getMilliseconds() + $this->interval;
         $this->options = $options;
@@ -22,21 +35,6 @@ class Timer extends Task
     public function stop(): void
     {
         $this->stopped = true;
-    }
-
-    public function run()
-    {
-        if ($this->getMilliseconds() >= $this->tick) {
-            $value = parent::run();
-
-            if (($this->options & self::TYPE_INTERVAL) == self::TYPE_INTERVAL) {
-                $this->tick += $this->interval;
-            } else {
-                $this->stop();
-            }
-
-            return $value;
-        }
     }
 
     public function finished(): bool

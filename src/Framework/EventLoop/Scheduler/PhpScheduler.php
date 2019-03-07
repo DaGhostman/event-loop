@@ -39,9 +39,7 @@ class PhpScheduler implements SchedulerInterface
 
     public function interval(int $interval, Closure $callback) {
         $worker = function () use ($callback) {
-            for (;;) {
-                yield $callback();
-            }
+            yield $callback();
         };
 
         return $this->loop->push(
@@ -52,9 +50,7 @@ class PhpScheduler implements SchedulerInterface
 
     public function delay(int $delay, Closure $callback) {
         $worker = function () use ($callback) {
-            for (;;) {
-                yield $callback();
-            }
+            yield $callback();
         };
 
         return $this->loop->push(
