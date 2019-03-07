@@ -16,15 +16,29 @@ class Stream
         return $result !== false ? $result : null;
     }
 
-    public function read(int $size = 8192): ?string
+    public function read(): ?string
     {
-        $result = @fread($this->resource, $size);
-        return $result !== false ? $result : null;
+        if ($this->isClosed()) {
+            return null;
+        }
+
+        $this->block();
+        $r = @fread($this->resource, 8196);
+        $this->unblock();
+
+        return $r;
     }
 
     public function write(string $contents): ?int
     {
-        $result = @fputs($this->resource, $contents);
+        if ($this->isClosed()) {
+            return null;
+        }
+
+        $this->block();
+        $result = @fwrite($this->resource, $contents);
+        $this->unblock();
+
         return $result !== false ? $result : null;
     }
 
@@ -84,5 +98,15 @@ class Stream
     public function tty(): bool
     {
         return stream_isatty($this->resource);
+    }
+
+    public function block(): bool
+    {
+        return stream_set_blocking($this->resource, 1);
+    }
+
+    public function unblock(): bool
+    {
+        return stream_set_blocking($this->resource, 0);
     }
 }
