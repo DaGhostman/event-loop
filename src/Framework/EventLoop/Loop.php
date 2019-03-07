@@ -35,37 +35,47 @@ class Loop implements Countable, LoopInterface
     public function start(): void
     {
         while (!$this->stopped) {
+            array_map(function ($stream) {
+                if (!is_resource($stream)) {
+                    $this->detach($stream);
+                }
+            }, $this->readStreams);
+
+            array_map(function ($stream) {
+                if (!is_resource($stream)) {
+                    $this->detach($stream);
+                }
+            }, $this->writeStreams);
+
+            if (!empty($this->readStreams) || !empty($this->writeStreams)) {
+                $reads = $this->readStreams;
+                $writes = $this->writeStreams;
+                $errors = [];
+
+                if (@select($reads, $writes, $errors, 0) !== false) {
+                    foreach ($reads as $read) {
+                        $fd = (int) $read;
+
+                        $socket = new Stream($read);
+                        ($this->readListeners[$fd])($socket);
+                    }
+
+                    foreach ($writes as $write) {
+                        $fd = (int) $write;
+
+                        $socket = new Stream($write);
+                        ($this->writeListeners[$fd])($socket);
+                    }
+                }
+            }
 
             try { // Protect excessive loops by checking count
                 $this->tick($this->timers, count($this->timers));
                 $this->tick($this->queue, count($this->queue));
             } finally {
-                $this->tick($this->deferred, PHP_INT_MAX); // We have to run all deferred
+                $this->tick($this->deferred, count($this->deferred)); // We have to run all deferred
             }
-
-            $reads = $this->readStreams;
-            $writes = $this->writeStreams;
-            $errors = [];
-
-            if (@select($reads, $writes, $errors, null)) {
-                foreach ($reads as $read) {
-                    $fd = (int) $read;
-
-                    $socket = new Stream($read);
-                    ($this->readListeners[$fd])($socket);
-                }
-
-                foreach ($writes as $write) {
-                    $fd = (int) $write;
-
-                    $socket = new Stream($write);
-                    ($this->writeListeners[$fd])($socket);
-                }
-            }
-
         }
-
-
     }
 
     public function attach($resource, ?Closure $onRead = null, ?Closure $onWrite = null): bool
