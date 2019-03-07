@@ -23,10 +23,10 @@ class Stream
         }
 
         $this->block();
-        $r = @fread($this->resource, 8196);
+        $result = @fread($this->resource, 8196);
         $this->unblock();
 
-        return $r;
+        return $result;
     }
 
     public function write(string $contents): ?int
