@@ -7,7 +7,7 @@ use Onion\Framework\EventLoop\Scheduler\PhpScheduler;
 
 if (!function_exists(__NAMESPACE__ . '\select')) {
     function select(&$read, &$write, &$error, ?int $timeout = null) {
-        return stream_select($read, $write, $error, $timeout);
+        return @stream_select($read, $write, $error, $timeout);
     }
 }
 
