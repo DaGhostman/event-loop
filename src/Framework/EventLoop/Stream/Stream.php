@@ -16,14 +16,14 @@ class Stream
         return $result !== false ? $result : null;
     }
 
-    public function read(): ?string
+    public function read(int $size = 8196): ?string
     {
         if ($this->isClosed()) {
             return null;
         }
 
         $this->block();
-        $result = @fread($this->resource, 8196);
+        $result = @fread($this->resource, $size);
         $this->unblock();
 
         return $result;
