@@ -92,7 +92,7 @@ class SwooleScheduler implements SchedulerInterface
 
     public function detach($resource): bool
     {
-        if (!$resource || !is_resource($resource)) {
+        if (!$resource || !is_resource($resource) || !swoole_event_isset($resource)) {
             return true;
         }
 
