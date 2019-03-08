@@ -2,10 +2,23 @@
 
 namespace Onion\Framework\EventLoop;
 
+use Onion\Framework\EventLoop\Interfaces\LoopInterface;
+
 if (extension_loaded('swoole')) {
     include __DIR__ . '/swoole-functions.php';
 } else {
     include __DIR__ . '/php-functions.php';
+}
+
+if (!function_exists(__NAMESPACE__ . '\loop')) {
+    function &loop(): LoopInterface {
+        static $loop = null;
+        if ($loop === null) {
+            $loop = new Loop();
+        }
+
+        return $loop;
+    }
 }
 
 if (!function_exists(__NAMESPACE__ . '\coroutine')) {
