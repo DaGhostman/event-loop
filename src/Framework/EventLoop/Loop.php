@@ -52,7 +52,7 @@ class Loop implements Countable, LoopInterface
                 $writes = $this->writeStreams;
                 $errors = [];
 
-                if (@select($reads, $writes, $errors, 0) !== false) {
+                if (@select($reads, $writes, $errors, count($this) > 0 ? 0 : null) !== false) {
                     foreach ($reads as $read) {
                         $fd = (int) $read;
 
