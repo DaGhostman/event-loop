@@ -30,7 +30,7 @@ class SwooleScheduler implements SchedulerInterface
                 $this->timer = $timer;
             }
             public function run() {}
-            public function stop() {
+            public function stop(): void {
                 swoole_timer_clear($this->timer);
                 parent::stop();
             }
@@ -48,7 +48,7 @@ class SwooleScheduler implements SchedulerInterface
                 $this->timer = $timer;
             }
             public function run() {}
-            public function stop() {
+            public function stop(): void {
                 swoole_timer_clear($this->timer);
                 parent::stop();
             }
