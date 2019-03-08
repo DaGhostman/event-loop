@@ -10,6 +10,10 @@ use Onion\Framework\EventLoop\Task\Timer;
 
 class Loop implements Countable, LoopInterface
 {
+    public const BROADCAST_READ = 1;
+    public const BROADCAST_WRITE = 2;
+    public const BROADCAST_ALL = self::BROADCAST_READ | self::BROADCAST_WRITE;
+
     private $readStreams = [];
     private $writeStreams = [];
     private $readListeners = [];
@@ -168,6 +172,23 @@ class Loop implements Countable, LoopInterface
 
     public function count()
     {
-        return count($this->queue) && count($this->deferred);
+        return count($this->queue) +
+            count($this->deferred) +
+            count($this->timers);
+    }
+
+    public function broadcast(Closure $callback, int $type = self::BROADCAST_ALL): void
+    {
+        if (($type & self::BROADCAST_READ) === self::BROADCAST_READ) {
+            foreach ($this->readStreams as $stream) {
+                $callback($stream);
+            }
+        }
+
+        if (($type & self::BROADCAST_WRITE) === self::BROADCAST_WRITE) {
+            foreach ($this->readStreams as $stream) {
+                $callback($stream);
+            }
+        }
     }
 }
