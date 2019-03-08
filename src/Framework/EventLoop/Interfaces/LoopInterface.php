@@ -12,6 +12,7 @@ interface LoopInterface
     public function detach($resource): bool;
 
     public function start(): void;
+    public function tick(): void;
     public function push(TaskInterface $task, int $type = self::TASK_IMMEDIATE): TaskInterface;
     public function stop(): void;
 }
