@@ -6,30 +6,29 @@ class Timer extends Task
     public const TYPE_INTERVAL = 1;
     public const TYPE_DELAY = 2;
 
-    private $interval;
-    private $options = 0;
-    private $tick;
     private $stopped = false;
 
     public function __construct(\Closure $closure, float $interval, int $options = self::TYPE_INTERVAL)
     {
-        $func = function () use ($closure) {
-            for (;;) {
-                if ($this->getMilliseconds() >= $this->tick && !$this->stopped) {
-                    yield $closure();
+        $tick = $this->getMilliseconds() + $interval;
 
-                    if (($this->options & self::TYPE_INTERVAL) === self::TYPE_INTERVAL) {
-                        $this->tick += $this->interval;
+        $func = function () use ($closure, $tick, $interval, $options) {
+            for (;;) {
+                if ($this->getMilliseconds() >= $tick && !$this->stopped) {
+                    $closure();
+                    if (($options & Timer::TYPE_INTERVAL) === Timer::TYPE_INTERVAL) {
+                        $tick += $interval;
                     } else {
                         $this->stop();
+                        break;
                     }
                 }
+
+                yield $tick;
             }
         };
+
         parent::__construct($func);
-        $this->interval = $interval;
-        $this->tick = $this->getMilliseconds() + $this->interval;
-        $this->options = $options;
     }
 
     public function stop(): void
