@@ -4,7 +4,7 @@ use function Onion\Framework\EventLoop\attach;
 use function Onion\Framework\EventLoop\defer;
 use function Onion\Framework\EventLoop\detach;
 use function Onion\Framework\EventLoop\loop;
-use Onion\Framework\EventLoop\Stream\Stream;
+use Onion\Framework\EventLoop\Stream\Interfaces\StreamInterface;
 require __DIR__ . '/../../vendor/autoload.php';
 
 ini_set('display_errors', 1);
@@ -18,10 +18,10 @@ if (!$socket) {
 }
 stream_set_blocking($socket, 0);
 
-attach($socket, function (Stream $stream) {
+attach($socket, function (StreamInterface $stream) {
     $channel = @stream_socket_accept($stream->detach(), 0);
 
-    attach($channel, function (Stream $stream) {
+    attach($channel, function (StreamInterface $stream) {
         $data = $stream->read();
         $size = strlen($data);
         $stream->write("HTTP/1.1 200 OK\n");

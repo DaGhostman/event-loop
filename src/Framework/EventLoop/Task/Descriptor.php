@@ -23,7 +23,7 @@ class Descriptor extends Task
             $write = [$resource];
 
             if (@select($read, $write, $error, null) !== false) {
-                $stream = new Stream($resource, !empty($read), !empty($write));
+                $stream = new Stream($resource);
 
                 yield coroutine(function () use ($callback, $stream) {
                     return $callback($stream);

@@ -5,7 +5,7 @@ use function Onion\Framework\EventLoop\io;
 use function Onion\Framework\EventLoop\loop;
 use function Onion\Framework\EventLoop\scheduler;
 use function Onion\Framework\EventLoop\timer;
-use Onion\Framework\EventLoop\Stream\Stream;
+use Onion\Framework\EventLoop\Stream\Interfaces\StreamInterface;
 require __DIR__ . '/../../vendor/autoload.php';
 
 ini_set('display_errors', 1);
@@ -25,7 +25,7 @@ timer(1, function () use ($plain) {
         return;
     }
 
-    io($channel, function (Stream $stream) {
+    io($channel, function (StreamInterface $stream) {
         $data = $stream->read();
         $size = strlen($data);
         $stream->write("HTTP/1.1 200 OK\n");

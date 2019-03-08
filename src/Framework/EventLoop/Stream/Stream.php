@@ -1,7 +1,7 @@
 <?php
 namespace Onion\Framework\EventLoop\Stream;
 
-class Stream
+class Stream implements Interfaces\StreamInterface
 {
     private $resource;
 

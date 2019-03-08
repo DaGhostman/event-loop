@@ -2,12 +2,12 @@
 
 use function Onion\Framework\EventLoop\io;
 use function Onion\Framework\EventLoop\loop;
-use Onion\Framework\EventLoop\Stream\Stream;
+use Onion\Framework\EventLoop\Stream\StreamInterface;
 require __DIR__ . '/../vendor/autoload.php';
 
 $fp = fopen(__DIR__ . '/test.txt', 'r');
 
-io($fp, function (Stream $stream) {
+io($fp, function (StreamInterface $stream) {
     if ($stream->isReadable()) {
         echo "Readable!\n";
 
