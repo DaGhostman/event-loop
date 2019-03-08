@@ -18,6 +18,10 @@ if (!function_exists(__NAMESPACE__ . '\loop')) {
         if ($loop === null) {
             $loop = new class implements LoopInterface {
                 public function start(): void {}
+                public function tick(): void
+                {
+                    swoole_event_wait();
+                }
                 public function stop(): void {}
                 public function kill(): void {}
                 public function attach($resource, ?\Closure $onRead = null, ?\Closure $onWrite = null): bool {}
