@@ -38,23 +38,15 @@ class PhpScheduler implements SchedulerInterface
     }
 
     public function interval(int $interval, Closure $callback) {
-        $worker = function () use ($callback) {
-            yield $callback();
-        };
-
         return $this->loop->push(
-            new Timer($worker, $interval, Timer::TYPE_INTERVAL),
+            new Timer($callback, $interval, Timer::TYPE_INTERVAL),
             Loop::TASK_IMMEDIATE
         );
     }
 
     public function delay(int $delay, Closure $callback) {
-        $worker = function () use ($callback) {
-            yield $callback();
-        };
-
         return $this->loop->push(
-            new Timer($worker, $delay, Timer::TYPE_DELAY),
+            new Timer($callback, $delay, Timer::TYPE_DELAY),
             Loop::TASK_IMMEDIATE
         );
     }
