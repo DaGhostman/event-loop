@@ -70,10 +70,10 @@ class Loop implements Countable, LoopInterface
             }
 
             try { // Protect excessive loops by checking count
-                $this->tick($this->timers, count($this->timers));
-                $this->tick($this->queue, count($this->queue));
+                $this->tick($this->timers);
+                $this->tick($this->queue);
             } finally {
-                $this->tick($this->deferred, count($this->deferred)); // We have to run all deferred
+                $this->tick($this->deferred); // We have to run all deferred
             }
         }
     }
@@ -137,8 +137,9 @@ class Loop implements Countable, LoopInterface
         return $task;
     }
 
-    private function tick(\SplQueue $queue, int $max = 1)
+    private function tick(\SplQueue $queue)
     {
+        $max = count($queue);
         while(!$queue->isEmpty() && $max--) {
             /** @var Task $task */
             $task = $queue->dequeue();
