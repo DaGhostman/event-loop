@@ -39,18 +39,6 @@ class Loop implements Countable, LoopInterface
     public function start(): void
     {
         while (!$this->stopped) {
-            array_map(function ($stream) {
-                if (!is_resource($stream)) {
-                    $this->detach($stream);
-                }
-            }, $this->readStreams);
-
-            array_map(function ($stream) {
-                if (!is_resource($stream)) {
-                    $this->detach($stream);
-                }
-            }, $this->writeStreams);
-
             if (!empty($this->readStreams) || !empty($this->writeStreams)) {
                 $reads = $this->readStreams;
                 $writes = $this->writeStreams;
@@ -74,6 +62,18 @@ class Loop implements Countable, LoopInterface
             }
 
             $this->tick();
+
+            array_map(function ($stream) {
+                if (!is_resource($stream)) {
+                    $this->detach($stream);
+                }
+            }, $this->readStreams);
+
+            array_map(function ($stream) {
+                if (!is_resource($stream)) {
+                    $this->detach($stream);
+                }
+            }, $this->writeStreams);
         }
     }
 
