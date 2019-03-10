@@ -16,10 +16,10 @@ class Stream implements Interfaces\StreamInterface
         return $result !== false ? $result : null;
     }
 
-    public function read(int $size = 8192): ?string
+    public function read(int $size = 8192): string
     {
         if ($this->isClosed()) {
-            return null;
+            throw new \LogicException("Can't read from a closed stream");
         }
 
         $result = '';
@@ -35,10 +35,10 @@ class Stream implements Interfaces\StreamInterface
         return $result;
     }
 
-    public function write(string $contents): ?int
+    public function write(string $contents): int
     {
         if ($this->isClosed()) {
-            return null;
+            throw new \LogicException("Can't write to a closed stream");
         }
 
         return @fwrite($this->resource, $contents) ?: 0;
