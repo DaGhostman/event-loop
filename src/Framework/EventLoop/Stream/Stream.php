@@ -23,9 +23,9 @@ class Stream implements Interfaces\StreamInterface
         }
 
         $result = '';
-        while (true) {
-            $buffer = @fread($this->resource, $size);
-            if ($buffer === '' && $result !== '') {
+        while (!$this->isClosed()) {
+            $buffer = @stream_get_contents($this->resource, $size);
+            if (strlen($buffer) === 0 && strlen($result) !== 0) {
                 break;
             }
 
@@ -56,7 +56,12 @@ class Stream implements Interfaces\StreamInterface
 
     public function close(): bool
     {
-        return !$this->isClosed() ? @fclose($this->resource) : true;
+        if ($this->isClosed()) {
+            return true;
+        }
+
+        stream_socket_shutdown($this->resource, STREAM_SHUT_RDWR);
+        return @fclose($this->resource);
     }
 
     public function size(): int
@@ -80,7 +85,7 @@ class Stream implements Interfaces\StreamInterface
 
     public function isClosed(): bool
     {
-        return !is_resource($this->resource);
+        return !is_resource($this->resource) || feof($this->resource);
     }
 
     public function isLocal(): bool
