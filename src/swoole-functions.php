@@ -3,6 +3,7 @@ namespace Onion\Framework\EventLoop;
 
 use Onion\Framework\EventLoop\Interfaces\LoopInterface;
 use Onion\Framework\EventLoop\Interfaces\SchedulerInterface;
+use Onion\Framework\EventLoop\Interfaces\TaskInterface;
 use Onion\Framework\EventLoop\Scheduler\SwooleScheduler;
 
 if (!function_exists(__NAMESPACE__ . '\select')) {
