@@ -16,15 +16,21 @@ class Stream implements Interfaces\StreamInterface
         return $result !== false ? $result : null;
     }
 
-    public function read(int $size = 8196): ?string
+    public function read(int $size = 8192): ?string
     {
         if ($this->isClosed()) {
             return null;
         }
 
-        $this->block();
-        $result = @fread($this->resource, $size);
-        $this->unblock();
+        $result = '';
+        while (true) {
+            $buffer = @fread($this->resource, $size);
+            if ($buffer === '' && $result !== '') {
+                break;
+            }
+
+            $result .= $buffer;
+        }
 
         return $result;
     }
@@ -35,11 +41,7 @@ class Stream implements Interfaces\StreamInterface
             return null;
         }
 
-        $this->block();
-        $result = @fwrite($this->resource, $contents);
-        $this->unblock();
-
-        return $result !== false ? $result : null;
+        return @fwrite($this->resource, $contents) ?: 0;
     }
 
     public function eof(): bool
