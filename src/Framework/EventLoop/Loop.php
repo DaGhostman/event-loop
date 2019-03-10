@@ -64,13 +64,13 @@ class Loop implements Countable, LoopInterface
             $this->tick();
 
             array_map(function ($stream) {
-                if (!is_resource($stream)) {
+                if (!is_resource($stream) || feof($stream)) {
                     $this->detach($stream);
                 }
             }, $this->readStreams);
 
             array_map(function ($stream) {
-                if (!is_resource($stream)) {
+                if (!is_resource($stream) || feof($stream)) {
                     $this->detach($stream);
                 }
             }, $this->writeStreams);
