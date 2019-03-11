@@ -24,6 +24,7 @@ class Stream implements Interfaces\StreamInterface
 
         $result = '';
         while (!$this->isClosed()) {
+            usleep(1);
             $buffer = @stream_get_contents($this->resource, $size);
             if (strlen($buffer) === 0 && strlen($result) !== 0) {
                 break;
