@@ -68,10 +68,8 @@ class Loop implements Countable, LoopInterface
                             continue;
                         }
 
-                        $stream = new Stream($read);
                         $fd = (int) $read;
-
-                        call_user_func($this->readListeners[$fd], $stream);
+                        call_user_func($this->readListeners[$fd], $this->readStreams[$fd]);
                     }
 
                     foreach ($writes as $write) {
@@ -80,10 +78,8 @@ class Loop implements Countable, LoopInterface
                             continue;
                         }
 
-                        $stream = new Stream($write);
                         $fd = (int) $write;
-
-                        call_user_func($this->writeListeners[$fd], $stream);
+                        call_user_func($this->writeListeners[$fd], $this->writeStreams[$fd]);
                     }
                 }
             }
