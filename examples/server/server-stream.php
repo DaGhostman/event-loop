@@ -4,7 +4,7 @@ use function Onion\Framework\EventLoop\attach;
 use function Onion\Framework\EventLoop\defer;
 use function Onion\Framework\EventLoop\detach;
 use function Onion\Framework\EventLoop\loop;
-use Onion\Framework\EventLoop\Stream\Interfaces\StreamInterface;
+use GuzzleHttp\Stream\StreamInterface;
 require __DIR__ . '/../../vendor/autoload.php';
 
 ini_set('display_errors', 1);
@@ -19,10 +19,14 @@ if (!$socket) {
 stream_set_blocking($socket, 0);
 
 attach($socket, function (StreamInterface $stream) {
-    $channel = @stream_socket_accept($stream->detach(), 0);
+    $pointer = $stream->detach();
+    $stream->attach($pointer);
+
+    $channel = @stream_socket_accept($pointer);
+    stream_set_blocking($channel, false);
 
     attach($channel, function (StreamInterface $stream) {
-        $data = $stream->read();
+        $data = $stream->read(8192);
         $size = strlen($data);
         $stream->write("HTTP/1.1 200 OK\n");
         $stream->write("Content-Type: text/plain\n");
@@ -32,8 +36,7 @@ attach($socket, function (StreamInterface $stream) {
         $stream->write("{$data}");
 
         defer(function () use ($stream) {
-            $stream->close();
-            detach($stream->detach());
+            detach($stream);
         });
     });
 });

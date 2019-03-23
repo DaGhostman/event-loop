@@ -10,6 +10,6 @@
         ]
     },
     "require": {
-        "guzzle/stream": "^3.9"
+        "guzzlehttp/streams": "^3.0"
     }
 }

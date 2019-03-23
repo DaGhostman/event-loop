@@ -1,7 +1,7 @@
 <?php
 namespace Onion\Framework\EventLoop\Scheduler;
 
-use Guzzle\Stream\StreamInterface;
+use GuzzleHttp\Stream\StreamInterface;
 use Onion\Framework\EventLoop\Interfaces\LoopInterface as Loop;
 use Onion\Framework\EventLoop\Interfaces\SchedulerInterface;
 use Onion\Framework\EventLoop\Task\Descriptor;

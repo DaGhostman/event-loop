@@ -2,8 +2,7 @@
 namespace Onion\Framework\EventLoop;
 
 use Countable;
-use Guzzle\Stream\Stream;
-use Guzzle\Stream\StreamInterface;
+use GuzzleHttp\Stream\StreamInterface;
 use Onion\Framework\EventLoop\Interfaces\LoopInterface;
 use Onion\Framework\EventLoop\Interfaces\TaskInterface;
 use Onion\Framework\EventLoop\Task\Timer;
@@ -40,24 +39,31 @@ class Loop implements Countable, LoopInterface
     {
         while (!$this->stopped) {
             array_map(function (StreamInterface $stream) {
-                if (!is_resource($stream->getStream()) || $stream->isConsumed()) {
+                if ($stream->eof()) {
                     $this->detach($stream);
                 }
+
             }, $this->readStreams);
 
             array_map(function ($stream) {
-                if (!is_resource($stream->getStream()) || $stream->isConsumed()) {
+                if ($stream->eof()) {
                     $this->detach($stream);
                 }
             }, $this->writeStreams);
 
             if (!empty($this->readStreams) || !empty($this->writeStreams)) {
                 $reads = array_map(function (StreamInterface $stream) {
-                    return $stream->getStream();
+                    $pointer = $stream->detach();
+                    $stream->attach($pointer);
+
+                    return $pointer;
                 }, $this->readStreams);
 
                 $writes = array_map(function (StreamInterface $stream) {
-                    return $stream->getStream();
+                    $pointer = $stream->detach();
+                    $stream->attach($pointer);
+
+                    return $pointer;
                 }, $this->writeStreams);
                 $errors = [];
 
@@ -100,8 +106,9 @@ class Loop implements Countable, LoopInterface
 
     public function attach(StreamInterface $resource, ?callable $onRead = null, ?callable $onWrite = null): bool
     {
-
-        $fd = (int) $resource->getStream();
+        $pointer = $resource->detach();
+        $resource->attach($pointer);
+        $fd = (int) $pointer;
 
         if ($onRead === null && $onWrite === null) {
             return false;
@@ -124,7 +131,9 @@ class Loop implements Countable, LoopInterface
 
     public function detach(StreamInterface $resource): bool
     {
-        $fd = (int) $resource->getStream();
+        $pointer = $resource->detach();
+        $resource->attach($pointer);
+        $fd = (int) $pointer;
 
         if (!isset($this->readStreams[$fd]) && !isset($this->writeStreams)) {
             return false;

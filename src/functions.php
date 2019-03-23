@@ -2,8 +2,8 @@
 
 namespace Onion\Framework\EventLoop;
 
-use Guzzle\Stream\Stream;
-use Guzzle\Stream\StreamInterface;
+use GuzzleHttp\Stream\Stream;
+use GuzzleHttp\Stream\StreamInterface;
 
 if (extension_loaded('swoole')) {
     include __DIR__ . '/swoole-functions.php';

@@ -4,7 +4,7 @@ namespace Onion\Framework\EventLoop\Task;
 use Closure;
 use function Onion\Framework\EventLoop\coroutine;
 use function Onion\Framework\EventLoop\select;
-use Guzzle\Stream\Stream;
+use GuzzleHttp\Stream\Stream;
 
 class Descriptor extends Task
 {

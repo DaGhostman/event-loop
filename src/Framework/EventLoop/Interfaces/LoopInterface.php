@@ -1,7 +1,7 @@
 <?php
 namespace Onion\Framework\EventLoop\Interfaces;
 
-use Guzzle\Stream\StreamInterface;
+use GuzzleHttp\Stream\StreamInterface;
 
 interface LoopInterface
 {
