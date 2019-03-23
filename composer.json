@@ -8,5 +8,8 @@
         "files": [
             "src/functions.php"
         ]
+    },
+    "require": {
+        "guzzle/stream": "^3.9"
     }
 }

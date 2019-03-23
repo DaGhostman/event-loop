@@ -2,9 +2,9 @@
 namespace Onion\Framework\EventLoop\Scheduler;
 
 use Closure;
+use Guzzle\Stream\Stream;
 use Onion\Framework\EventLoop\Interfaces\LoopInterface as Loop;
 use Onion\Framework\EventLoop\Interfaces\SchedulerInterface;
-use Onion\Framework\EventLoop\Stream\Stream;
 use Onion\Framework\EventLoop\Task\Descriptor;
 use Onion\Framework\EventLoop\Task\Timer;
 

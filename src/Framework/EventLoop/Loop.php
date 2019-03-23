@@ -3,9 +3,9 @@ namespace Onion\Framework\EventLoop;
 
 use Closure;
 use Countable;
+use Guzzle\Stream\Stream;
 use Onion\Framework\EventLoop\Interfaces\LoopInterface;
 use Onion\Framework\EventLoop\Interfaces\TaskInterface;
-use Onion\Framework\EventLoop\Stream\Stream;
 use Onion\Framework\EventLoop\Task\Timer;
 
 class Loop implements Countable, LoopInterface
