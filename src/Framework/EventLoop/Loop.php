@@ -1,9 +1,9 @@
 <?php
 namespace Onion\Framework\EventLoop;
 
-use Closure;
 use Countable;
 use Guzzle\Stream\Stream;
+use Guzzle\Stream\StreamInterface;
 use Onion\Framework\EventLoop\Interfaces\LoopInterface;
 use Onion\Framework\EventLoop\Interfaces\TaskInterface;
 use Onion\Framework\EventLoop\Task\Timer;
@@ -39,41 +39,56 @@ class Loop implements Countable, LoopInterface
     public function start(): void
     {
         while (!$this->stopped) {
-            if (!empty($this->readStreams) || !empty($this->writeStreams)) {
-                $reads = $this->readStreams;
-                $writes = $this->writeStreams;
-                $errors = [];
-
-                if (@select($reads, $writes, $errors, count($this) > 0 ? 0 : null) !== false) {
-                    foreach ($reads as $read) {
-                        $fd = (int) $read;
-
-                        $socket = new Stream($read);
-                        ($this->readListeners[$fd])($socket);
-                    }
-
-                    foreach ($writes as $write) {
-                        $fd = (int) $write;
-
-                        $socket = new Stream($write);
-                        ($this->writeListeners[$fd])($socket);
-                    }
-                }
-            }
-
-            $this->tick();
-
-            array_map(function ($stream) {
-                if (!is_resource($stream) || feof($stream)) {
+            array_map(function (StreamInterface $stream) {
+                if (!is_resource($stream->getStream()) || $stream->isConsumed()) {
                     $this->detach($stream);
                 }
             }, $this->readStreams);
 
             array_map(function ($stream) {
-                if (!is_resource($stream) || feof($stream)) {
+                if (!is_resource($stream->getStream()) || $stream->isConsumed()) {
                     $this->detach($stream);
                 }
             }, $this->writeStreams);
+
+            if (!empty($this->readStreams) || !empty($this->writeStreams)) {
+                $reads = array_map(function (StreamInterface $stream) {
+                    return $stream->getStream();
+                }, $this->readStreams);
+
+                $writes = array_map(function (StreamInterface $stream) {
+                    return $stream->getStream();
+                }, $this->writeStreams);
+                $errors = [];
+
+                if (@select($reads, $writes, $errors, count($this) > 0 ? 0 : null) !== false) {
+                    foreach ($reads as $read) {
+                        if (!is_resource($read) || feof($read)) {
+                            $this->detach($read);
+                            continue;
+                        }
+
+                        $stream = new Stream($read);
+                        $fd = (int) $read;
+
+                        call_user_func($this->readListeners[$fd], $stream);
+                    }
+
+                    foreach ($writes as $write) {
+                        if (!is_resource($write) || feof($write)) {
+                            $this->detach($write);
+                            continue;
+                        }
+
+                        $stream = new Stream($write);
+                        $fd = (int) $write;
+
+                        call_user_func($this->writeListeners[$fd], $stream);
+                    }
+                }
+            }
+
+            $this->tick();
         }
     }
 
@@ -87,9 +102,10 @@ class Loop implements Countable, LoopInterface
         }
     }
 
-    public function attach($resource, ?Closure $onRead = null, ?Closure $onWrite = null): bool
+    public function attach(StreamInterface $resource, ?callable $onRead = null, ?callable $onWrite = null): bool
     {
-        $fd = (int) $resource;
+
+        $fd = (int) $resource->getStream();
 
         if ($onRead === null && $onWrite === null) {
             return false;
@@ -110,9 +126,9 @@ class Loop implements Countable, LoopInterface
         return true;
     }
 
-    public function detach($resource): bool
+    public function detach(StreamInterface $resource): bool
     {
-        $fd = (int) $resource;
+        $fd = (int) $resource->getStream();
 
         if (!isset($this->readStreams[$fd]) && !isset($this->writeStreams)) {
             return false;
@@ -177,7 +193,7 @@ class Loop implements Countable, LoopInterface
             count($this->timers);
     }
 
-    public function broadcast(Closure $callback, int $type = self::BROADCAST_ALL): void
+    public function broadcast(callable $callback, int $type = self::BROADCAST_ALL): void
     {
         if (($type & self::BROADCAST_READ) === self::BROADCAST_READ) {
             foreach ($this->readStreams as $stream) {

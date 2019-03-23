@@ -2,6 +2,9 @@
 
 namespace Onion\Framework\EventLoop;
 
+use Guzzle\Stream\Stream;
+use Guzzle\Stream\StreamInterface;
+
 if (extension_loaded('swoole')) {
     include __DIR__ . '/swoole-functions.php';
 } else {
@@ -41,6 +44,18 @@ if (!function_exists(__NAMESPACE__ . '\defer')) {
 if (!function_exists(__NAMESPACE__ . '\io')) {
     function io($resource, \Closure $callback)
     {
+        if (!$resource instanceof StreamInterface) {
+            if (!is_resource($resource)) {
+                throw new \InvalidArgumentException(sprintf(
+                    'Expected instance of %s or type resource, %s given',
+                    StreamInterface::class,
+                    gettype($resource)
+                ));
+            }
+
+            $resource = new Stream($resource);
+        }
+
         return scheduler()->io($resource, $callback);
     }
 }
@@ -48,6 +63,18 @@ if (!function_exists(__NAMESPACE__ . '\io')) {
 if (!function_exists(__NAMESPACE__ . '\attach')) {
     function attach($resource, ?\Closure $onRead = null, ?\Closure $onWrite = null)
     {
+        if (!$resource instanceof StreamInterface) {
+            if (!is_resource($resource)) {
+                throw new \InvalidArgumentException(sprintf(
+                    'Expected instance of %s or type resource, %s given',
+                    StreamInterface::class,
+                    gettype($resource)
+                ));
+            }
+
+            $resource = new Stream($resource);
+        }
+
         return scheduler()->attach($resource, $onRead, $onWrite);
     }
 }
@@ -55,6 +82,18 @@ if (!function_exists(__NAMESPACE__ . '\attach')) {
 if (!function_exists(__NAMESPACE__ . '\detach')) {
     function detach($resource)
     {
+        if (!$resource instanceof StreamInterface) {
+            if (!is_resource($resource)) {
+                throw new \InvalidArgumentException(sprintf(
+                    'Expected instance of %s or type resource, %s given',
+                    StreamInterface::class,
+                    gettype($resource)
+                ));
+            }
+
+            $resource = new Stream($resource);
+        }
+
         return scheduler()->detach($resource);
     }
 }

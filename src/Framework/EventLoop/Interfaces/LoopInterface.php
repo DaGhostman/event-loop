@@ -1,15 +1,15 @@
 <?php
 namespace Onion\Framework\EventLoop\Interfaces;
 
-use Closure;
+use Guzzle\Stream\StreamInterface;
 
 interface LoopInterface
 {
     const TASK_IMMEDIATE = 0;
     const TASK_DEFERRED = 1;
 
-    public function attach($resource, ?Closure $onRead = null, ?Closure $onWrite = null): bool;
-    public function detach($resource): bool;
+    public function attach(StreamInterface $resource, ?callable $onRead = null, ?callable $onWrite = null): bool;
+    public function detach(StreamInterface $resource): bool;
 
     public function start(): void;
     public function tick(): void;

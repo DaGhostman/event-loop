@@ -1,7 +1,6 @@
 <?php
 namespace Onion\Framework\EventLoop\Scheduler;
 
-use Closure;
 use Guzzle\Stream\Stream;
 use Onion\Framework\EventLoop\Interfaces\LoopInterface as Loop;
 use Onion\Framework\EventLoop\Interfaces\SchedulerInterface;
@@ -18,17 +17,17 @@ class SwooleScheduler implements SchedulerInterface
         $this->loop = $loop;
     }
 
-    public function task(Closure $callback): void
+    public function task(callable $callback): void
     {
         \Swoole\Coroutine::create($callback);
     }
 
-    public function defer(Closure $closure): void
+    public function defer(callable $callable): void
     {
-        swoole_event_defer($closure);
+        swoole_event_defer($callable);
     }
 
-    public function interval(int $interval, Closure $callback)
+    public function interval(int $interval, callable $callback)
     {
         $timer = swoole_timer_tick($interval, $callback);
 
@@ -46,7 +45,7 @@ class SwooleScheduler implements SchedulerInterface
         };
     }
 
-    public function delay(int $delay, Closure $callback)
+    public function delay(int $delay, callable $callback)
     {
         $timer = swoole_timer_after($delay, $callback);
 
@@ -64,7 +63,7 @@ class SwooleScheduler implements SchedulerInterface
         };
     }
 
-    public function io($resource, ?Closure $callback)
+    public function io($resource, ?callable $callback)
     {
         if (is_resource($resource)) {
             $descriptor = new Descriptor($resource, $callback);
@@ -74,7 +73,7 @@ class SwooleScheduler implements SchedulerInterface
         }
     }
 
-    public function attach($resource, ?Closure $onRead = null, ?Closure $onWrite = null): bool
+    public function attach($resource, ?callable $onRead = null, ?callable $onWrite = null): bool
     {
         if (!$resource || !is_resource($resource)) {
             return true;
