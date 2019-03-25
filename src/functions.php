@@ -4,14 +4,13 @@ namespace Onion\Framework\EventLoop;
 
 use GuzzleHttp\Stream\Stream;
 use GuzzleHttp\Stream\StreamInterface;
+use Onion\Framework\EventLoop\Interfaces\SchedulerInterface;
 
 if (extension_loaded('swoole')) {
     include __DIR__ . '/swoole-functions.php';
 } else {
     include __DIR__ . '/php-functions.php';
 }
-
-
 
 if (!function_exists(__NAMESPACE__ . '\coroutine')) {
     function coroutine(\Closure $callback): void
@@ -41,27 +40,8 @@ if (!function_exists(__NAMESPACE__ . '\defer')) {
     }
 }
 
-if (!function_exists(__NAMESPACE__ . '\io')) {
-    function io($resource, \Closure $callback)
-    {
-        if (!$resource instanceof StreamInterface) {
-            if (!is_resource($resource)) {
-                throw new \InvalidArgumentException(sprintf(
-                    'Expected instance of %s or type resource, %s given',
-                    StreamInterface::class,
-                    gettype($resource)
-                ));
-            }
-
-            $resource = new Stream($resource);
-        }
-
-        return scheduler()->io($resource, $callback);
-    }
-}
-
 if (!function_exists(__NAMESPACE__ . '\attach')) {
-    function attach($resource, ?\Closure $onRead = null, ?\Closure $onWrite = null)
+    function attach($resource, ?callable $onRead = null, ?callable $onWrite = null)
     {
         if (!$resource instanceof StreamInterface) {
             if (!is_resource($resource)) {
@@ -95,5 +75,17 @@ if (!function_exists(__NAMESPACE__ . '\detach')) {
         }
 
         return scheduler()->detach($resource);
+    }
+}
+
+if (!function_exists(__NAMESPACE__ . '\scheduler')) {
+    function &scheduler(): SchedulerInterface
+    {
+        static $scheduler = null;
+        if ($scheduler === null) {
+            $scheduler = new Scheduler(loop());
+        }
+
+        return $scheduler;
     }
 }

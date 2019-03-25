@@ -2,8 +2,6 @@
 namespace Onion\Framework\EventLoop;
 
 use Onion\Framework\EventLoop\Interfaces\LoopInterface;
-use Onion\Framework\EventLoop\Interfaces\SchedulerInterface;
-use Onion\Framework\EventLoop\Scheduler\PhpScheduler;
 
 if (!function_exists(__NAMESPACE__ . '\select')) {
     function select(&$read, &$write, &$error, ?int $timeout = null) {
@@ -12,25 +10,13 @@ if (!function_exists(__NAMESPACE__ . '\select')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\loop')) {
-    function &loop(): LoopInterface {
+    function &loop($count = 1): LoopInterface {
         static $loop = null;
         if ($loop === null) {
-            $loop = new Loop();
+            $loop = new Loop($count);
         }
 
         return $loop;
-    }
-}
-
-if (!function_exists(__NAMESPACE__ . '\scheduler')) {
-    function &scheduler(): SchedulerInterface
-    {
-        static $scheduler = null;
-        if ($scheduler === null) {
-            $scheduler = new PhpScheduler(loop());
-        }
-
-        return $scheduler;
     }
 }
 
