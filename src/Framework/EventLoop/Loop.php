@@ -26,6 +26,7 @@ class Loop implements Countable, LoopInterface
 
     public function __construct()
     {
+
         $this->queue = new \SplQueue();
         $this->timers = new \SplQueue();
         $this->deferred = new \SplQueue();
@@ -38,18 +39,27 @@ class Loop implements Countable, LoopInterface
     public function start(): void
     {
         while (!$this->stopped) {
-            array_map(function (StreamInterface $stream) {
-                if ($stream->eof()) {
-                    $this->detach($stream);
+            foreach ($this->readStreams as $index => $readStream) {
+                $pointer = $readStream->detach();
+                if (!is_resource($pointer) || feof($pointer)) {
+                    unset($this->readListeners[$index]);
+                    unset($this->readStreams[$index]);
+                    continue;
                 }
 
-            }, $this->readStreams);
+                $readStream->attach($pointer);
+            }
 
-            array_map(function ($stream) {
-                if ($stream->eof()) {
-                    $this->detach($stream);
+            foreach ($this->writeStreams as $index => $writeStream) {
+                $pointer = $writeStream->detach();
+                if (!is_resource($pointer) || feof($pointer)) {
+                    unset($this->writeListeners[$index]);
+                    unset($this->writeStream[$index]);
+                    continue;
                 }
-            }, $this->writeStreams);
+
+                $writeStream->attach($pointer);
+            }
 
             if (!empty($this->readStreams) || !empty($this->writeStreams)) {
                 $reads = array_map(function (StreamInterface $stream) {
@@ -69,21 +79,11 @@ class Loop implements Countable, LoopInterface
 
                 if (@select($reads, $writes, $errors, count($this) > 0 ? 0 : null) !== false) {
                     foreach ($reads as $read) {
-                        if (!is_resource($read) || feof($read)) {
-                            $this->detach($read);
-                            continue;
-                        }
-
                         $fd = (int) $read;
                         call_user_func($this->readListeners[$fd], $this->readStreams[$fd]);
                     }
 
                     foreach ($writes as $write) {
-                        if (!is_resource($write) || feof($write)) {
-                            $this->detach($write);
-                            continue;
-                        }
-
                         $fd = (int) $write;
                         call_user_func($this->writeListeners[$fd], $this->writeStreams[$fd]);
                     }
@@ -132,7 +132,6 @@ class Loop implements Countable, LoopInterface
     public function detach(StreamInterface $resource): bool
     {
         $pointer = $resource->detach();
-        $resource->attach($pointer);
         $fd = (int) $pointer;
 
         if (!isset($this->readStreams[$fd]) && !isset($this->writeStreams)) {

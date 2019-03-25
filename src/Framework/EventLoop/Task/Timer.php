@@ -8,14 +8,14 @@ class Timer extends Task
 
     private $stopped = false;
 
-    public function __construct(\Closure $closure, float $interval, int $options = self::TYPE_INTERVAL)
+    public function __construct(callable $closure, float $interval, int $options = self::TYPE_INTERVAL)
     {
         $tick = $this->getMilliseconds() + $interval;
 
         $func = function () use ($closure, $tick, $interval, $options) {
             for (;;) {
                 if ($this->getMilliseconds() >= $tick && !$this->stopped) {
-                    $closure();
+                    call_user_func($closure);
                     if (($options & Timer::TYPE_INTERVAL) === Timer::TYPE_INTERVAL) {
                         $tick += $interval;
                     } else {

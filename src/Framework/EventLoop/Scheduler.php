@@ -1,15 +1,13 @@
 <?php
-namespace Onion\Framework\EventLoop\Scheduler;
+namespace Onion\Framework\EventLoop;
 
 use GuzzleHttp\Stream\StreamInterface;
 use Onion\Framework\EventLoop\Interfaces\LoopInterface as Loop;
 use Onion\Framework\EventLoop\Interfaces\SchedulerInterface;
-use Onion\Framework\EventLoop\Task\Descriptor;
 use Onion\Framework\EventLoop\Task\Task;
 use Onion\Framework\EventLoop\Task\Timer;
 
-
-class PhpScheduler implements SchedulerInterface
+class Scheduler implements SchedulerInterface
 {
     /** @var Loop $loop */
     private $loop;
@@ -21,20 +19,12 @@ class PhpScheduler implements SchedulerInterface
 
     public function task(callable $callback): void
     {
-        $worker = function () use ($callback) {
-            yield $callback();
-        };
-
-        $this->loop->push(new Task($worker), Loop::TASK_IMMEDIATE);
+        $this->loop->push(new Task($callback), Loop::TASK_IMMEDIATE);
     }
 
-    public function defer(callable $callable): void
+    public function defer(callable $callback): void
     {
-        $worker = function () use ($callable) {
-            yield $callable();
-        };
-
-        $this->loop->push(new Task($worker), Loop::TASK_DEFERRED);
+        $this->loop->push(new Task($callback), Loop::TASK_DEFERRED);
     }
 
     public function interval(int $interval, callable $callback) {
@@ -49,14 +39,6 @@ class PhpScheduler implements SchedulerInterface
             new Timer($callback, $delay, Timer::TYPE_DELAY),
             Loop::TASK_IMMEDIATE
         );
-    }
-
-    public function io($resource, ?callable $callback)
-    {
-        if (is_resource($resource)) {
-            $descriptor = new Descriptor($resource, $callback);
-            $this->loop->push($descriptor);
-        }
     }
 
     public function attach(StreamInterface $resource, ?callable $onRead = null, ?callable $onWrite = null): bool
