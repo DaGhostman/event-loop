@@ -74,7 +74,7 @@ if (!function_exists(__NAMESPACE__ . '\loop')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\interval')) {
-    function interval(int $interval, callable $callback): Timer {
+    function timer(int $interval, callable $callback): Timer {
         $timer = swoole_timer_tick($interval, $callback);
 
         return new class($timer) extends Timer {
@@ -93,9 +93,8 @@ if (!function_exists(__NAMESPACE__ . '\interval')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\delay')) {
-    function delay(int $delay, callable $callback): Timer {
+    function after(int $delay, callable $callback): Timer {
         $timer = swoole_timer_after($delay, $callback);
-
         return new class($timer) extends Timer {
             private $timer;
 
