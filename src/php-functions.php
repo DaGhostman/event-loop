@@ -10,10 +10,10 @@ if (!function_exists(__NAMESPACE__ . '\select')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\loop')) {
-    function &loop($count = 1): LoopInterface {
+    function &loop(): LoopInterface {
         static $loop = null;
         if ($loop === null) {
-            $loop = new Loop($count);
+            $loop = new Loop();
         }
 
         return $loop;
