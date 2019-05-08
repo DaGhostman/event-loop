@@ -17,26 +17,26 @@ class Scheduler implements SchedulerInterface
         $this->loop = $loop;
     }
 
-    public function task(callable $callback): void
+    public function task(callable $callback, ...$params): void
     {
-        $this->loop->push(new Task($callback), Loop::TASK_IMMEDIATE);
+        $this->loop->push(new Task($callback, ...$params), Loop::TASK_IMMEDIATE);
     }
 
-    public function defer(callable $callback): void
+    public function defer(callable $callback, ...$params): void
     {
-        $this->loop->push(new Task($callback), Loop::TASK_DEFERRED);
+        $this->loop->push(new Task($callback, ...$params), Loop::TASK_DEFERRED);
     }
 
-    public function interval(int $interval, callable $callback) {
+    public function interval(int $interval, callable $callback, ...$params) {
         return $this->loop->push(
-            new Timer($callback, $interval, Timer::TYPE_INTERVAL),
+            new Timer($callback, $interval, Timer::TYPE_INTERVAL, ...$params),
             Loop::TASK_IMMEDIATE
         );
     }
 
-    public function delay(int $delay, callable $callback) {
+    public function delay(int $delay, callable $callback, ...$params) {
         return $this->loop->push(
-            new Timer($callback, $delay, Timer::TYPE_DELAY),
+            new Timer($callback, $delay, Timer::TYPE_DELAY, ...$params),
             Loop::TASK_IMMEDIATE
         );
     }

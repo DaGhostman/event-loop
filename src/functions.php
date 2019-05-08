@@ -5,6 +5,9 @@ namespace Onion\Framework\EventLoop;
 use GuzzleHttp\Stream\Stream;
 use GuzzleHttp\Stream\StreamInterface;
 use Onion\Framework\EventLoop\Interfaces\SchedulerInterface;
+use Onion\Framework\Promise\Interfaces\CancelableInterface;
+use Onion\Framework\Promise\Promise;
+use Onion\Framework\Promise\CancelablePromise;
 
 if (extension_loaded('swoole')) {
     include __DIR__ . '/swoole-functions.php';
@@ -13,30 +16,45 @@ if (extension_loaded('swoole')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\coroutine')) {
-    function coroutine(\Closure $callback): void
+    function coroutine(callable $callback, ...$params): void
     {
-        scheduler()->task($callback);
+        scheduler()->task($callback, ...$params);
+    }
+}
+
+if (!function_exists(__NAMESPACE__ . '\task')) {
+    function task(callable $task, ?callable $cancel = null, ...$params): CancelableInterface
+    {
+        return new CancelablePromise(function ($resolve, $reject) use ($task, $params) {
+            coroutine(function (callable $task, array $params) use ($resolve, $reject) {
+                try {
+                    $resolve(call_user_func($task, ...$params));
+                } catch (\Throwable $ex) {
+                    $reject($ex);
+                }
+            }, $task, $params);
+        }, $cancel ?? function() {});
     }
 }
 
 if (!function_exists(__NAMESPACE__ . '\after')) {
-    function after(int $interval, \Closure $callback)
+    function after(int $interval, \Closure $callback, ...$params)
     {
-        return scheduler()->delay($interval, $callback);
+        return scheduler()->delay($interval, $callback, ...$params);
     }
 }
 
 if (!function_exists(__NAMESPACE__ . '\timer')) {
-    function timer(int $interval, \Closure $callback)
+    function timer(int $interval, \Closure $callback, ...$params)
     {
         return scheduler()->interval($interval, $callback);
     }
 }
 
 if (!function_exists(__NAMESPACE__ . '\defer')) {
-    function defer(\Closure $callback)
+    function defer(\Closure $callback, ...$params)
     {
-        return scheduler()->defer($callback);
+        return scheduler()->defer($callback, ...$params);
     }
 }
 

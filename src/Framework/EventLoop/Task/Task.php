@@ -9,11 +9,11 @@ class Task implements TaskInterface
     private $exception;
     private $callback;
 
-    public function __construct(callable $closure)
+    public function __construct(callable $closure, ...$params)
     {
-        $this->callback = $this->wrap((function () use ($closure) {
-            yield call_user_func($closure);
-        })());
+        $this->callback = $this->wrap((function ($params) use ($closure) {
+            yield call_user_func($closure, ...$params);
+        })($params));
     }
 
     private function wrap(\Generator $generator)
