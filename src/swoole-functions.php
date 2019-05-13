@@ -74,8 +74,10 @@ if (!function_exists(__NAMESPACE__ . '\loop')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\interval')) {
-    function timer(int $interval, callable $callback): Timer {
-        $timer = swoole_timer_tick($interval, $callback);
+    function timer(int $interval, callable $callback, ...$params): Timer {
+        $timer = swoole_timer_tick($interval, function (array $params) use ($callback) {
+            call_user_func($callback, ...$params);
+        }, $params);
 
         return new class($timer) extends Timer {
             private $timer;
@@ -93,8 +95,10 @@ if (!function_exists(__NAMESPACE__ . '\interval')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\delay')) {
-    function after(int $delay, callable $callback): Timer {
-        $timer = swoole_timer_after($delay, $callback);
+    function after(int $delay, callable $callback, ...$params): Timer {
+        $timer = swoole_timer_after($delay, function (array $params) use ($callback) {
+            call_user_func($callback, ...$params);
+        }, $params);
         return new class($timer) extends Timer {
             private $timer;
 
@@ -112,13 +116,17 @@ if (!function_exists(__NAMESPACE__ . '\delay')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\defer')) {
-    function defer(callable $callable): void {
-        swoole_event_defer($callable);
+    function defer(callable $callable, ...$params): void {
+        swoole_event_defer(function () use($callable, $params) {
+            call_user_func($callable, ...$params);
+        });
     }
 }
 
 if (!function_exists(__NAMESPACE__ . '\coroutine')) {
-    function coroutine(callable $callable): void {
-        \Swoole\Coroutine::create($callable);
+    function coroutine(callable $callable, ...$params): void {
+        \Swoole\Coroutine::create(function () use ($callable, $params) {
+            call_user_func($callable, ...$params);
+        });
     }
 }
