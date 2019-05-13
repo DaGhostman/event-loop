@@ -12,10 +12,10 @@ class Timer extends Task
     {
         $tick = $this->getMilliseconds() + $interval;
 
-        $func = function () use ($closure, $tick, $interval, $options) {
+        $func = function (...$params) use ($closure, $tick, $interval, $options) {
             for (;;) {
                 if ($this->getMilliseconds() >= $tick && !$this->stopped) {
-                    call_user_func($closure);
+                    call_user_func($closure, ...$params);
                     if (($options & Timer::TYPE_INTERVAL) === Timer::TYPE_INTERVAL) {
                         $tick += $interval;
                     } else {
