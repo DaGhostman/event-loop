@@ -8,7 +8,7 @@ class Timer extends Task
 
     private $stopped = false;
 
-    public function __construct(callable $closure, float $interval, int $options = self::TYPE_INTERVAL)
+    public function __construct(callable $closure, float $interval, int $options = self::TYPE_INTERVAL, ...$params)
     {
         $tick = $this->getMilliseconds() + $interval;
 
@@ -28,7 +28,7 @@ class Timer extends Task
             }
         };
 
-        parent::__construct($func);
+        parent::__construct($func, ...$params);
     }
 
     public function stop(): void
