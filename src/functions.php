@@ -5,9 +5,6 @@ namespace Onion\Framework\EventLoop;
 use GuzzleHttp\Stream\Stream;
 use GuzzleHttp\Stream\StreamInterface;
 use Onion\Framework\EventLoop\Interfaces\SchedulerInterface;
-use Onion\Framework\Promise\Interfaces\CancelableInterface;
-use Onion\Framework\Promise\Promise;
-use Onion\Framework\Promise\CancelablePromise;
 
 if (extension_loaded('swoole')) {
     include __DIR__ . '/swoole-functions.php';
@@ -19,21 +16,6 @@ if (!function_exists(__NAMESPACE__ . '\coroutine')) {
     function coroutine(callable $callback, ...$params): void
     {
         scheduler()->task($callback, ...$params);
-    }
-}
-
-if (!function_exists(__NAMESPACE__ . '\task')) {
-    function task(callable $task, ?callable $cancel = null, ...$params): CancelableInterface
-    {
-        return new CancelablePromise(function ($resolve, $reject) use ($task, $params) {
-            coroutine(function (callable $task, array $params) use ($resolve, $reject) {
-                try {
-                    $resolve(call_user_func($task, ...$params));
-                } catch (\Throwable $ex) {
-                    $reject($ex);
-                }
-            }, $task, $params);
-        }, $cancel ?? function() {});
     }
 }
 
