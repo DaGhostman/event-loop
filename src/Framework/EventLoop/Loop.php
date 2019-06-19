@@ -39,52 +39,46 @@ class Loop implements Countable, LoopInterface
     public function start(): void
     {
         while (!$this->stopped) {
-            foreach ($this->readStreams as $index => $readStream) {
-                $pointer = $readStream->detach();
-                if (!is_resource($pointer) || feof($pointer)) {
-                    unset($this->readListeners[$index]);
-                    unset($this->readStreams[$index]);
-                    continue;
-                }
-
-                $readStream->attach($pointer);
-            }
-
-            foreach ($this->writeStreams as $index => $writeStream) {
-                $pointer = $writeStream->detach();
-                if (!is_resource($pointer) || feof($pointer)) {
-                    unset($this->writeListeners[$index]);
-                    unset($this->writeStream[$index]);
-                    continue;
-                }
-
-                $writeStream->attach($pointer);
-            }
-
             if (!empty($this->readStreams) || !empty($this->writeStreams)) {
-                $reads = array_map(function (StreamInterface $stream) {
-                    $pointer = $stream->detach();
-                    $stream->attach($pointer);
+                $reads = [];
+                $writes = [];
+                foreach ($this->readStreams as $fd => $stream) {
+                    $read = $stream->detach();
+                    if (!$read || !is_resource($read) || feof($read)) {
+                        unset($this->readListeners[$fd]);
+                        unset($this->readStreams[$fd]);
+                        continue;
+                    }
 
-                    return $pointer;
-                }, $this->readStreams);
+                    $stream->attach($read);
+                    $reads[] = $read;
+                }
 
-                $writes = array_map(function (StreamInterface $stream) {
-                    $pointer = $stream->detach();
-                    $stream->attach($pointer);
+                foreach ($this->writeStreams as $fd => $stream) {
+                    $write = $stream->detach();
+                    if (!$write || !is_resource($write) || feof($write)) {
+                        unset($this->writeStreams[$fd]);
+                        unset($this->writeListeners[$fd]);
+                        continue;
+                    }
 
-                    return $pointer;
-                }, $this->writeStreams);
+                    $stream->attach($write);
+                    $writes[] = $write;
+                }
+
                 $errors = [];
 
                 if (@select($reads, $writes, $errors, count($this) > 0 ? 0 : null) !== false) {
                     foreach ($reads as $read) {
                         $fd = (int) $read;
+
                         call_user_func($this->readListeners[$fd], $this->readStreams[$fd]);
                     }
 
+
                     foreach ($writes as $write) {
                         $fd = (int) $write;
+
                         call_user_func($this->writeListeners[$fd], $this->writeStreams[$fd]);
                     }
                 }
