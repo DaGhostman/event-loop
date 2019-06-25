@@ -1,6 +1,8 @@
 <?php
 namespace Onion\Framework\Loop;
 
+use function Onion\Framework\EventLoop\select;
+
 class Scheduler implements \Countable
 {
     protected $taskMap = [];
@@ -27,6 +29,7 @@ class Scheduler implements \Countable
     }
 
     public function poll($timeout) {
+        var_dump($timeout);
         $reads = [];
         foreach ($this->reads as list($sock)) {
             if ($sock && is_resource($sock)) {
@@ -43,31 +46,33 @@ class Scheduler implements \Countable
 
         $errors = [];
 
-        if (empty($reads) && empty($writes)) {
+        if ((empty($reads) && empty($writes)) || !select($reads, $writes, $errors, $timeout)) {
             return;
         }
 
 
-        if (@stream_select($reads, $writes, $errors, $timeout) !== false) {
-            foreach ($reads as $read) {
-                $fd = (int) $read;
-                list(, $tasks) = $this->reads[$fd];
+        foreach ($reads as $read) {
+            $fd = (int) $read;
+            list(, $tasks) = $this->reads[$fd];
 
-                unset($this->reads[$fd]);
-                foreach ($tasks as $task) {
-                    $this->schedule($task);
-                }
+            unset($this->reads[$fd]);
+            foreach ($tasks as $task) {
+                $this->schedule($task);
             }
 
-            foreach ($writes as $write) {
-                $fd = (int) $write;
-                list(, $tasks) = $this->writes[$fd];
-                unset($this->writes[$fd]);
+            yield;
+        }
 
-                foreach ($tasks as $task) {
-                    $this->schedule($task);
-                }
+        foreach ($writes as $write) {
+            $fd = (int) $write;
+            list(, $tasks) = $this->writes[$fd];
+            unset($this->writes[$fd]);
+
+            foreach ($tasks as $task) {
+                $this->schedule($task);
             }
+
+            yield;
         }
     }
 
@@ -78,17 +83,8 @@ class Scheduler implements \Countable
     public function start()
     {
         $this->started = true;
-
-
-        while ($this->started) {
-            $this->run();
-        }
-    }
-
-    public function run() {
-        $this->started = true;
         $this->push((function () {
-            while (true) {
+            while ($this->started) {
                 if ($this->taskQueue->isEmpty()) {
                     $this->poll(null);
                 } else {
@@ -98,6 +94,10 @@ class Scheduler implements \Countable
             }
         })());
 
+        $this->run();
+    }
+
+    public function run() {
         while (!$this->taskQueue->isEmpty()) {
             $task = $this->taskQueue->dequeue();
             $result = $task->run();
@@ -166,5 +166,13 @@ class Scheduler implements \Countable
     public static function makeTask(\Generator $coroutine)
     {
         return new Task($coroutine);
+    }
+
+    public function __debugInfo()
+    {
+        return [
+            'tasks_count' => count($this->taskQueue),
+            'watched_count' => count($this->reads) + count($this->writes),
+        ];
     }
 }
