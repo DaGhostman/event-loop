@@ -8,8 +8,8 @@ use function Onion\Framework\EventLoop\attach;
 
 require __DIR__ . '/../vendor/autoload.php';
 
-// ini_set('display_errors', 0);
-// error_reporting(E_ALL ^ E_WARNING);
+ini_set('display_errors', 0);
+error_reporting(E_ALL);
 
 $scheduler = new Scheduler;
 
@@ -22,44 +22,87 @@ class Socket
     {
         $this->resource = $resource;
         if ($this->resource) {
-            stream_set_blocking($resource, false);
             $this->peer = stream_socket_get_name($resource, true);
         }
     }
 
     public function accept()
     {
-        // yield onRead($this->resource);
-        yield new Result(new self(stream_socket_accept($this->resource, 0)));
+        $this->unblock();
+        yield from read($this, function (Socket $socket) {
+            return new self(stream_socket_accept($this->resource, 0));
+        });
     }
 
-    public function write(string $data): \Generator
+    public function write(string $data)
     {
-        yield onWrite($this->resource);
-        $max = strlen($data);
-        $size = stream_socket_sendto($this->resource, $data, null, $this->peer);
-        while ($size !== false && ($size < $max)) {
-            $size += stream_socket_sendto($this->resource, substr($data, $size), null, $this->peer);
-        }
+        // yield from write($this, function (Socket $connection) use ($data) {
+            // yield onWrite($this->resource);
+            $max = strlen($data);
+            $size = stream_socket_sendto($this->resource, $data, null, $this->peer);
+            while ($size !== false && ($size < $max)) {
+                $size += stream_socket_sendto($this->resource, substr($data, $size), null, $this->peer);
+            }
 
-        yield new Result($size);
+            // yield new Result($size);
+            return $size;
+        // });
     }
 
-    public function read(int $size = -1): \Generator
+    public function read(int $size = -1)
     {
-        yield onRead($this->resource);
-        yield new Result(stream_socket_recvfrom($this->resource, $size, null, $this->peer));
+        return stream_socket_recvfrom($this->getResource(), $size, null, $this->peer);
+    }
+
+    public function getContents()
+    {
+        return $this->isConnected() ? stream_get_contents($this->getResource()) : '';
     }
 
     public function close()
     {
-        yield new Result(@fclose($this->resource));
+        return fclose($this->resource);
     }
 
     public function isConnected()
     {
-        yield new Result(is_resource($this->resource));
+        return is_resource($this->getResource());
     }
+
+    public function unblock()
+    {
+        return stream_set_blocking($this->resource, false);
+    }
+
+    public function block()
+    {
+        return stream_set_blocking($this->resource, true);
+    }
+
+    public function getResource()
+    {
+        return $this->resource;
+    }
+
+    public function __debugInfo()
+    {
+        return [
+            'resource' => $this->resource,
+            'peer' => $this->peer,
+        ];
+    }
+}
+
+function read(Socket $socket, callable $callback) {
+    yield onRead($socket->getResource());
+
+    yield new Result(call_user_func($callback, $socket));
+}
+
+function write(Socket $socket, callable $callback) {
+    yield onWrite($socket->getResource());
+
+    yield new Result(call_user_func($callback, $socket));
 }
 
 function coroutine(\Generator $coroutine) {
@@ -72,7 +115,7 @@ function coroutine(\Generator $coroutine) {
 
 function onRead($socket): Signal {
     return new Signal(function (Task $task, Scheduler $scheduler) use ($socket) {
-        $scheduler->attach($socket, $task);
+        $task->send($scheduler->attach($socket, $task));
     });
 }
 
@@ -82,13 +125,38 @@ function onWrite($socket): Signal {
     });
 }
 
-function data(Socket $channel) {
-    if (yield $channel->isConnected()) {
-        if (yield $channel->write("HTTP/1.1 200 OK\r\nContent-Length: 13\r\n\r\nHello, World!\r\n\r\n")) {
-            yield $channel->close();
-        }
+function data(Socket $socket) {
+    if ($socket->isConnected()) {
+        // Trigger Connect
+        $socket->unblock();
+
+        yield read($socket, function (Socket $socket) {
+            if (!$socket->isConnected()) {
+                $socket->close();
+                return;
+            }
+        });
+
+        yield write($socket, function (Socket $socket) {
+                $data = $socket->getContents();
+
+                $msg = "Received following request:\n\n$data";
+                $msgLength = strlen($msg);
+
+                $response = <<<RES
+HTTP/1.1 200 OK\r
+Content-Type: text/plain\r
+Content-Length: $msgLength\r
+Connection: close\r
+\r
+$msg
+RES;
+                $socket->write($response);
+                $socket->close();
+            });
     } else {
-        yield $channel->close();
+        // trigger disconnect
+        killTask(getTaskId());
     }
 }
 
@@ -126,27 +194,39 @@ function getTaskId() {
     });
 }
 
-
-function listen() {
-
-    $port = 1337;
-    $socket = stream_socket_server("tcp://0.0.0.0:{$port}", $errCode, $errMessage);
-    if (!$socket) {
-        throw new \ErrorException($errMessage, $errCode);
-    }
-    // stream_set_blocking($socket, false);
-    $socket = new Socket($socket);
-
-    for (;;) {
-        yield coroutine(
-            data(yield $socket->accept())
-        );
-    }
+function getTaskCount() {
+    return new Signal(function (Task $task, Scheduler $scheduler) {
+        $task->send(count($scheduler));
+        $scheduler->schedule($task);
+    });
 }
 
 
-$scheduler->push(listen());
-$scheduler->run();
+function listen(int $port) {
+    try {
+    $socket = @stream_socket_server("tcp://0.0.0.0:{$port}", $errCode, $errMessage, STREAM_SERVER_LISTEN | STREAM_SERVER_BIND);
+    if (!$socket) {
+        throw new \ErrorException($errMessage, $errCode);
+    }
+    $connection = new Socket($socket);
+
+    for (;;) {
+
+        yield coroutine(data(yield $connection->accept()));
+        // yield coroutine(yield read(yield $connection->accept(), function (Socket $connection) {
+        //     if (yield $connection->isConnected()) {
+        //         return (yield coroutine(yield read($connection, 'data')));
+        //     }
+        // }));
+    }
+} catch (\Throwable $ex) {
+    var_dump($ex);
+}
+}
+
+
+$scheduler->push(listen(8080));
+$scheduler->start();
 
 
 // if (!$socket) {
