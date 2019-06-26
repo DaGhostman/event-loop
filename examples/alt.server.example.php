@@ -8,7 +8,7 @@ use function Onion\Framework\EventLoop\attach;
 
 require __DIR__ . '/../vendor/autoload.php';
 
-ini_set('display_errors', 0);
+ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
 $scheduler = new Scheduler;
@@ -22,15 +22,15 @@ class Socket
     {
         $this->resource = $resource;
         if ($this->resource) {
+            $this->unblock();
             $this->peer = stream_socket_get_name($resource, true);
         }
     }
 
     public function accept()
     {
-        $this->unblock();
         yield from read($this, function (Socket $socket) {
-            return new self(stream_socket_accept($this->resource, 0));
+            return new self(@stream_socket_accept($socket->getResource(), 0));
         });
     }
 
@@ -49,9 +49,9 @@ class Socket
         // });
     }
 
-    public function read(int $size = -1)
+    public function read(int $size = -1, int $flags = 0)
     {
-        return stream_socket_recvfrom($this->getResource(), $size, null, $this->peer);
+        return @stream_socket_recvfrom($this->getResource(), $size, $flags, $this->peer);
     }
 
     public function getContents()
@@ -127,23 +127,27 @@ function onWrite($socket): Signal {
 
 function data(Socket $socket) {
     if ($socket->isConnected()) {
-        // Trigger Connect
-        $socket->unblock();
-
-        yield read($socket, function (Socket $socket) {
+        $data = '';
+        yield read($socket, function (Socket $socket) use (&$data) {
             if (!$socket->isConnected()) {
                 $socket->close();
                 return;
             }
+
+            $packet = '';
+            while ($data === '' || (!$packet && $data)) {
+                $packet = $socket->getContents();
+                $data .= $packet;
+            }
+
+            return $data;
         });
 
-        yield write($socket, function (Socket $socket) {
-                $data = $socket->getContents();
+        yield write($socket, function (Socket $socket) use (&$data) {
+            $msg = "Received following request:\n\n$data";
+            $msgLength = strlen($msg);
 
-                $msg = "Received following request:\n\n$data";
-                $msgLength = strlen($msg);
-
-                $response = <<<RES
+            $response = <<<RES
 HTTP/1.1 200 OK\r
 Content-Type: text/plain\r
 Content-Length: $msgLength\r
@@ -151,9 +155,9 @@ Connection: close\r
 \r
 $msg
 RES;
-                $socket->write($response);
-                $socket->close();
-            });
+            $socket->write($response);
+            $socket->close();
+        });
     } else {
         // trigger disconnect
         killTask(getTaskId());
@@ -203,25 +207,28 @@ function getTaskCount() {
 
 
 function listen(int $port) {
-    try {
     $socket = @stream_socket_server("tcp://0.0.0.0:{$port}", $errCode, $errMessage, STREAM_SERVER_LISTEN | STREAM_SERVER_BIND);
     if (!$socket) {
         throw new \ErrorException($errMessage, $errCode);
     }
     $connection = new Socket($socket);
 
-    for (;;) {
+    // echo "Parent UP\n";
+    // pcntl_async_signals(true);
+    // for ($i=0; $i<2; $i++) {
+        // $pid = pcntl_fork();
+        // if ($pid == -1) {
+            // die('could not fork');
+        // } else if ($pid === 0) {
+            // echo "Starting Child {$i}\n";
 
-        yield coroutine(data(yield $connection->accept()));
-        // yield coroutine(yield read(yield $connection->accept(), function (Socket $connection) {
-        //     if (yield $connection->isConnected()) {
-        //         return (yield coroutine(yield read($connection, 'data')));
-        //     }
-        // }));
-    }
-} catch (\Throwable $ex) {
-    var_dump($ex);
-}
+            for (;;) {
+                yield coroutine(data(yield $connection->accept()));
+            }
+        // }
+    // }
+
+    // pcntl_wait($status);
 }
 
 
