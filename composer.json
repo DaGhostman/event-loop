@@ -3,13 +3,14 @@
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "Onion\\" : "src/"
+            "Onion\\Framework\\" : "src/"
         },
         "files": [
             "src/functions.php"
         ]
     },
     "require": {
-        "guzzlehttp/streams": "^3.0"
+        "onion/promise": "dev-master",
+        "psr/event-dispatcher": "^1.0"
     }
 }
