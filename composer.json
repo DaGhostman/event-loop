@@ -10,6 +10,7 @@
         ]
     },
     "require": {
-        "guzzlehttp/streams": "^3.0"
+        "onion/promise": "^1.0",
+        "psr/event-dispatcher": "^1.0"
     }
 }
