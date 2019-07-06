@@ -10,7 +10,7 @@
         ]
     },
     "require": {
-        "onion/promise": "^1.0",
+        "onion/promise": "dev-master",
         "psr/event-dispatcher": "^1.0"
     }
 }

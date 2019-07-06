@@ -6,7 +6,7 @@ use Onion\Framework\Loop\Interfaces\SchedulerInterface;
 use Onion\Framework\Loop\Interfaces\TaskInterface as Task;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
 use Onion\Framework\Loop\Scheduler;
-use Onion\Framework\Promise\Promise;
+use Onion\Framework\Promise\AwaitablePromise as Promise;
 
 if (!function_exists(__NAMESPACE__ . '/read')) {
     function _read(ResourceInterface $socket) {
@@ -36,8 +36,9 @@ if (!function_exists(__NAMESPACE__ . '/write')) {
     }
 }
 
-if (!function_exists(__NAMESPACE__ . '/deferred')) {
-    function deferred(callable $callable, ?int $timeout = null, ?callable $cancelFn = null) {
+if (!function_exists(__NAMESPACE__ . '/async')) {
+    function async(callable $callable, ?int $timeout = null, ?callable $cancelFn = null): Signal
+    {
         return new Signal(function (Task $task, Scheduler $scheduler) use ($callable, $timeout, $cancelFn) {
             $coroutine = null;
             $promise = null;

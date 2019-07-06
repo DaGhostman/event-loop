@@ -1,9 +1,9 @@
 <?php
 
+use function Onion\Framework\Loop\async;
 use Onion\Framework\Loop\Coroutine;
 use Onion\Framework\Loop\Scheduler;
 use Onion\Framework\Promise\Promise;
-use function Onion\Framework\Loop\deferred;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 error_reporting(E_ALL);
@@ -12,7 +12,7 @@ ini_set('display_errors', 1);
 
 $master = new Coroutine(function () {
     /** @var Promise $promise */
-    $promise = yield deferred(function () {
+    $promise = yield async(function () {
         for ($i=0; $i<10; $i++) {
             sleep($i);
             echo "Tick {$i}!\n";
