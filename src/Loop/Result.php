@@ -1,16 +1,17 @@
 <?php
+
 namespace Onion\Framework\Loop;
 
 class Result
 {
-    private $value;
+    protected $value;
+
     public function __construct($value)
     {
         $this->value = $value;
     }
 
-    public function getValue()
-    {
+    public function getValue() {
         return $this->value;
     }
 }

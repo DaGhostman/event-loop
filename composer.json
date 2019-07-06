@@ -3,7 +3,7 @@
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "Onion\\" : "src/"
+            "Onion\\Framework\\" : "src/"
         },
         "files": [
             "src/functions.php"
