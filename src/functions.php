@@ -104,7 +104,6 @@ if (!function_exists(__NAMESPACE__ . '/async')) {
                     }, $timeout);
                 }));
                 $timerFn = function() use ($timer, $scheduler) {
-                    echo "Stopping promise timer :)";
                     $scheduler->killTask($timer);
                 };
 
