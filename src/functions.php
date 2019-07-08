@@ -42,7 +42,7 @@ if (!function_exists(__NAMESPACE__ . '/async')) {
         return new Signal(function (Task $task, Scheduler $scheduler) use ($callable, $timeout, $cancelFn) {
             $coroutine = null;
             $promise = null;
-            $promise = new Promise(function ($resolve, $reject) use ($scheduler, $callable, &$coroutine) {
+            $promise = new class(function ($resolve, $reject) use ($scheduler, $callable, &$coroutine) {
                 $coroutine = $scheduler->add(new Coroutine(function () use (&$resolve, &$reject, $callable) {
                     try {
                         $value = call_user_func($callable);
@@ -63,7 +63,36 @@ if (!function_exists(__NAMESPACE__ . '/async')) {
                 while ($promise->isPending()) {
                     yield;
                 }
-            }, $cancelFn);
+            }, $cancelFn) extends Promise {
+                private $waitFn;
+
+                public function __construct(callable $task, callable $waitFn, callable $cancelFn = null)
+                {
+                    $this->waitFn = $waitFn;
+                    parent::__construct($task, $waitFn, $cancelFn);
+                }
+
+                public function await()
+                {
+                    if ($this->isPending() && is_callable($this->waitFn)) {
+                        yield call_user_func($this->waitFn);
+
+                        if ($this->getValue() instanceof AwaitableInterface) {
+                            yield $this->getValue()->await();
+                        }
+                    }
+
+                    if ($this->isFulfilled()) {
+                        yield new Result($this->getValue());
+                    }
+
+                    if ($this->isRejected()) {
+                        throw $this->getValue();
+                    }
+
+                    throw new \RuntimeException("Waiting on {$this->getState()} promise failed");
+                }
+            };
 
             if ($timeout !== null) {
                 $timer = $scheduler->add(new Coroutine(function () use (&$coroutine, $promise, $timeout) {
