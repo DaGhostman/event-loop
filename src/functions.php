@@ -45,7 +45,7 @@ if (!function_exists(__NAMESPACE__ . '/async')) {
             $promise = new Promise(function ($resolve, $reject) use ($scheduler, $callable, &$coroutine) {
                 $coroutine = $scheduler->add(new Coroutine(function () use (&$resolve, &$reject, $callable) {
                     try {
-                        $value = call_user_func($callable, $resolve, $reject);
+                        $value = call_user_func($callable);
 
                         if ($value instanceof \Generator) {
                             yield from $value;
