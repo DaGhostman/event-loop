@@ -4,7 +4,6 @@ namespace Onion\Framework\Event;
 use Onion\Framework\Loop\Coroutine;
 use Onion\Framework\Loop\Interfaces\SchedulerInterface;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
-use Onion\Framework\Loop\Result;
 use Onion\Framework\Loop\Signal;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\EventDispatcher\ListenerProviderInterface;
@@ -25,15 +24,21 @@ class Dispatcher implements EventDispatcherInterface
             $scheduler->add(new Coroutine(function () use ($task, $scheduler, $event) {
                 $listeners = $this->listenerProvider->getListenersForEvent($event);
 
-                foreach ($listeners as $listener) {
-                    if ($event instanceof StoppableEventInterface && $event->isPropagationStopped()) {
-                        break;
-                    }
+                try {
+                    foreach ($listeners as $listener) {
+                        if ($event instanceof StoppableEventInterface && $event->isPropagationStopped()) {
+                            break;
+                        }
 
-                    yield call_user_func($listener, $event);
+                        yield call_user_func($listener, $event);
+                    }
+                    $task->send($event);
+
+                } catch (\Throwable $ex) {
+                    $task->throw($ex);
                 }
 
-                $task->send($event);
+
                 $scheduler->schedule($task);
 
                 yield;
