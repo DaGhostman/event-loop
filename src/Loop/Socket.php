@@ -2,8 +2,8 @@
 namespace Onion\Framework\Loop;
 
 use Onion\Framework\Loop\Descriptor;
-use Onion\Framework\Loop\Interfaces\SocketInterface;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
+use Onion\Framework\Loop\Interfaces\SocketInterface;
 
 class Socket extends Descriptor implements SocketInterface
 {
@@ -28,6 +28,6 @@ class Socket extends Descriptor implements SocketInterface
 
     public function accept(?int $timeout = 0): ResourceInterface
     {
-        return new static(stream_socket_accept($this->getDescriptor(), $timeout));
+        return new Descriptor(@stream_socket_accept($this->getDescriptor(), $timeout));
     }
 }

@@ -2,13 +2,13 @@
 namespace Onion\Framework\Event;
 
 use Onion\Framework\Loop\Coroutine;
+use Onion\Framework\Loop\Interfaces\SchedulerInterface;
+use Onion\Framework\Loop\Interfaces\TaskInterface;
 use Onion\Framework\Loop\Result;
 use Onion\Framework\Loop\Signal;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\EventDispatcher\ListenerProviderInterface;
 use Psr\EventDispatcher\StoppableEventInterface;
-use Onion\Framework\Loop\Interfaces\TaskInterface;
-use Onion\Framework\Loop\Interfaces\SchedulerInterface;
 
 class Dispatcher implements EventDispatcherInterface
 {
@@ -30,7 +30,7 @@ class Dispatcher implements EventDispatcherInterface
                         break;
                     }
 
-                    call_user_func($listener, $event);
+                    yield call_user_func($listener, $event);
                 }
 
                 $task->send($event);
