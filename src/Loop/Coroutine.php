@@ -4,7 +4,6 @@ namespace Onion\Framework\Loop;
 
 use Generator;
 use Onion\Framework\Loop\Interfaces\TaskInterface as Task;
-use Onion\Framework\Loop\Result;
 use Onion\Framework\Loop\Interfaces\SchedulerInterface as Scheduler;
 use Onion\Framework\Loop\Signal;
 use RuntimeException;
@@ -204,14 +203,13 @@ class Coroutine
                     continue;
                 }
 
-                $isReturnValue = $value instanceof Result;
-                if (!$generator->valid() || $isReturnValue) {
+                if (!$generator->valid()) {
                     if ($stack->isEmpty()) {
                         return;
                     }
 
                     $generator = $stack->pop();
-                    $generator->send($isReturnValue ? $value->getValue() : NULL);
+                    $generator->send($value->getReturn());
                     continue;
                 }
 
