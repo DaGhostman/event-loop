@@ -78,7 +78,7 @@ class Scheduler implements SchedulerInterface
 
 
             if ($task->isFinished()) {
-                unset($this->taskMap[$task->getId()]);
+                $this->killTask($task->getId());
             } else {
                 $this->schedule($task);
             }
@@ -194,6 +194,14 @@ class Scheduler implements SchedulerInterface
                 yield;
             }
         });
+    }
+
+    public function __debugInfo()
+    {
+        return [
+            'executed' => $this->maxTaskId,
+            'running' => count($this->taskQueue),
+        ];
     }
 
 }
