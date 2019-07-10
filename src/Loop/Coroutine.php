@@ -3,8 +3,8 @@
 namespace Onion\Framework\Loop;
 
 use Generator;
-use Onion\Framework\Loop\Interfaces\TaskInterface as Task;
 use Onion\Framework\Loop\Interfaces\SchedulerInterface as Scheduler;
+use Onion\Framework\Loop\Interfaces\TaskInterface as Task;
 use Onion\Framework\Loop\Signal;
 use RuntimeException;
 use SplStack;
@@ -94,13 +94,11 @@ class Coroutine
         });
     }
 
-    public static function push(int $coroutine, $data): Signal
+    public static function channel(?int $id = null)
     {
-        return new Signal(function (Task $task, Scheduler $scheduler) use ($data, $coroutine) {
-            $scheduler->add(new Coroutine(function () use ($task, $scheduler, $data, $coroutine) {
-                yield $scheduler->getTask($coroutine ?? $task->getId())->getChannel()->send($data);
-                $scheduler->schedule($task);
-            }));
+        return new Signal(function (Task $task, Scheduler $scheduler) use ($id) {
+            $task->send($scheduler->getTask(($id ?? $task->getId()))->getChannel());
+            $scheduler->schedule($task);
         });
     }
 
@@ -116,7 +114,7 @@ class Coroutine
         });
     }
 
-    public static function getId(): Signal
+    public static function id(): Signal
     {
         return new Signal(function (Task $task, Scheduler $scheduler) {
             $task->send($task->getId());
