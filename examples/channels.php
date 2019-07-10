@@ -1,6 +1,6 @@
 <?php
-use Onion\Framework\Loop\Scheduler;
 use Onion\Framework\Loop\Coroutine;
+use Onion\Framework\Loop\Scheduler;
 use Onion\Framework\Loop\Timer;
 
 require_once __DIR__ . '/../vendor/autoload.php';
@@ -11,8 +11,6 @@ ini_set('display_errors', 1);
 $scheduler = new Scheduler;
 
 $server = new Coroutine(function () {
-
-
     yield Coroutine::create(function () {
         $child = yield Coroutine::create(function () {
             while (Coroutine::isRunning()) {
