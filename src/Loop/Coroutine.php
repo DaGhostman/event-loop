@@ -94,7 +94,7 @@ class Coroutine
         });
     }
 
-    public static function channel(?int $id = null)
+    public static function channel(?int $id = null): Signal
     {
         return new Signal(function (Task $task, Scheduler $scheduler) use ($id) {
             $task->send($scheduler->getTask(($id ?? $task->getId()))->getChannel());
@@ -102,13 +102,11 @@ class Coroutine
         });
     }
 
-    public static function recv(?int $coroutine = null): Signal
+    public static function recv(): Signal
     {
-        return new Signal(function (Task $task, Scheduler $scheduler) use ($coroutine) {
-            $scheduler->add(new Coroutine(function () use ($task, $scheduler, $coroutine) {
-                $task->send(yield from (
-                    $scheduler->getTask(($coroutine ?? $task->getId()))->getChannel()->recv()
-                ));
+        return new Signal(function (Task $task, Scheduler $scheduler) {
+            $scheduler->add(new Coroutine(function () use ($task, $scheduler) {
+                $task->send(yield from ($task->getChannel()->recv()));
                 $scheduler->schedule($task);
             }));
         });
@@ -159,8 +157,13 @@ class Coroutine
     public static function isRunning(?int $id = null): Signal
     {
         return new Signal(function (Task $task, Scheduler $scheduler) use ($id) {
-            $t = $scheduler->getTask($id ?? $task->getId());
-            $task->send(!$t->isFinished());
+            try {
+                $running = !$scheduler->getTask($id ?? $task->getId())->isFinished();
+            } catch (\InvalidArgumentException $ex) {
+                $running = false;
+            }
+
+            $task->send($running);
             $scheduler->schedule($task);
         });
     }
