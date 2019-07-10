@@ -1,38 +1,40 @@
 <?php
 namespace Onion\Framework\Loop;
 
-use Onion\Framework\Loop\Descriptor;
-
 class Channel
 {
-    private const DATA_MARKER = "\x01";
-
     /** @var \SplQueue */
     private $queue;
-
-    /** @var Descriptor $resource*/
-    private $resource;
+    private $open = true;
 
     public function __construct()
     {
-        $this->resource = new Descriptor(fopen('php://temp/maxmemory=8192', 'rb+'));
         $this->queue = new \SplQueue;
     }
 
-    public function push($value): void
+    public function send($value)
     {
-        $this->queue->enqueue($value);
-        $this->resource->write(static::DATA_MARKER);
+        yield $this->queue->enqueue($value);
     }
 
-    public function pop()
+    public function recv()
     {
-        $this->resource->read(strlen(static::DATA_MARKER));
-        return !$this->queue->isEmpty() ? $this->queue->dequeue() : null;
+        while ($this->queue->isEmpty() && $this->open) {
+            yield;
+        }
+
+        if ($this->open) {
+            return $this->queue->dequeue();
+        }
     }
 
     public function isEmpty()
     {
         return $this->queue->isEmpty();
+    }
+
+    public function close()
+    {
+        $this->open = false;
     }
 }

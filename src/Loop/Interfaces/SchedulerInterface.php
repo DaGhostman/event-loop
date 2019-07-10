@@ -9,6 +9,8 @@ interface SchedulerInterface
     public function add(Coroutine $taskInterface): int;
     public function schedule(TaskInterface $task): void;
 
+    public function getTask(int $id): TaskInterface;
+
     public function onRead(ResourceInterface $resource, TaskInterface $task): void;
     public function onWrite(ResourceInterface $resource, TaskInterface $task): void;
 

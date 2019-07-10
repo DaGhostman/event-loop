@@ -1,6 +1,8 @@
 <?php
 namespace Onion\Framework\Loop\Interfaces;
 
+use Onion\Framework\Loop\Channel;
+
 interface TaskInterface
 {
     public function getId(): int;
@@ -9,6 +11,8 @@ interface TaskInterface
     public function suspend(): bool;
     public function resume(): bool;
     public function kill(): void;
+
+    public function getChannel(): Channel;
 
     public function send($value): void;
     public function throw(\Throwable $exception): void;

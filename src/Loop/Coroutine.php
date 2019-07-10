@@ -34,10 +34,9 @@ class Coroutine
     private $source;
 
 
-    public function __construct(callable $coroutine, ?Descriptor $descriptor = null)
+    public function __construct(callable $coroutine, ?Channel $channel = null)
     {
-        $this->descriptor = ($descriptor ?? new Descriptor(fopen('php://temp/maxmemory:1024', 'rw')));
-        $this->channel = new Channel();
+        $this->channel = $channel ?? new Channel();
 
         $coroutine = call_user_func($coroutine, $this->descriptor);
 
@@ -51,12 +50,7 @@ class Coroutine
         $this->coroutine = $this->wrap($coroutine);
     }
 
-    public function getDescriptor(): Descriptor
-    {
-        return $this->descriptor;
-    }
-
-    public function getChannel()
+    public function getChannel(): Channel
     {
         return $this->channel;
     }
@@ -103,26 +97,22 @@ class Coroutine
     public static function push(int $coroutine, $data): Signal
     {
         return new Signal(function (Task $task, Scheduler $scheduler) use ($data, $coroutine) {
-            $scheduler->getTask($coroutine ?? $task->getId())->push($data);
-            $scheduler->schedule($task);
+            $scheduler->add(new Coroutine(function () use ($task, $scheduler, $data, $coroutine) {
+                yield $scheduler->getTask($coroutine ?? $task->getId())->getChannel()->send($data);
+                $scheduler->schedule($task);
+            }));
         });
     }
 
-    public static function pop(): Signal
-    {
-        return new Signal(function (Task $task, Scheduler $scheduler) {
-            $task->send($task->pop());
-            $scheduler->schedule($task);
-        });
-    }
-
-    public static function isEmpty(?int $coroutine = null): Signal
+    public static function recv(?int $coroutine = null): Signal
     {
         return new Signal(function (Task $task, Scheduler $scheduler) use ($coroutine) {
-            $task->send(
-                $scheduler->getTask($coroutine ?? $task->getId())->isChannelEmpty()
-            );
-            $scheduler->schedule($task);
+            $scheduler->add(new Coroutine(function () use ($task, $scheduler, $coroutine) {
+                $task->send(yield from (
+                    $scheduler->getTask(($coroutine ?? $task->getId()))->getChannel()->recv()
+                ));
+                $scheduler->schedule($task);
+            }));
         });
     }
 
@@ -209,7 +199,7 @@ class Coroutine
                     }
 
                     $generator = $stack->pop();
-                    $generator->send($value->getReturn());
+                    $generator->send($value ? $value->getReturn() : null);
                     continue;
                 }
 

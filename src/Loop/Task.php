@@ -57,23 +57,14 @@ class Task implements TaskInterface
         $this->coroutine->send($value);
     }
 
-    public function push($data): void
+    public function getChannel(): Channel
     {
-        $this->coroutine->getChannel()->push($data);
-    }
-
-    public function pop()
-    {
-        return $this->coroutine->getChannel()->pop();
-    }
-
-    public function isChannelEmpty()
-    {
-        return $this->coroutine->getChannel()->isEmpty();
+        return $this->coroutine->getChannel();
     }
 
     public function kill(): void
     {
+        $this->getChannel()->close();
         $this->killed = true;
     }
 
