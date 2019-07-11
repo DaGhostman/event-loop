@@ -3,17 +3,17 @@ namespace Onion\Framework\Loop;
 
 class Timer
 {
-    public static function create(callable $coroutine, int $interval, bool $repeating = true)
+    public static function create(callable $coroutine, int $interval, bool $repeating = true, array $args = []): Signal
     {
 
         $interval *= 0.001;
-        $timer = function () use ($coroutine, $interval, $repeating) {
+        $timer = function ($coroutine, $interval, $repeating, $args) {
             $start = microtime(true);
             $tick = $start + $interval;
 
             while (true) {
                 // if ($this->getTicks() === 1) {
-                $result = call_user_func($coroutine);
+                $result = call_user_func($coroutine, ...$args);
                 // }
 
                 if ($tick <= microtime(true)) {
@@ -34,16 +34,16 @@ class Timer
             }
         };
 
-        return Coroutine::create($timer);
+        return Coroutine::create($timer, [$coroutine, $interval, $repeating, $args]);
     }
 
-    public static function interval(callable $coroutine, int $interval)
+    public static function interval(callable $coroutine, int $interval, array $args = []): Signal
     {
-        return static::create($coroutine, $interval, true);
+        return static::create($coroutine, $interval, true, $args);
     }
 
-    public static function after(callable $coroutine, int $interval)
+    public static function after(callable $coroutine, int $interval, array $args = []): Signal
     {
-        return static::create($coroutine, $interval, false);
+        return static::create($coroutine, $interval, false, $args);
     }
 }

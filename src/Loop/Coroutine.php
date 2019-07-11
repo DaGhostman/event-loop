@@ -21,9 +21,6 @@ class Coroutine
     /** @var mixed $result */
     private $result;
 
-    /** @var Descriptor $Descriptor */
-    private $descriptor;
-
     /** @var Channel $Descriptor */
     private $channel;
 
@@ -34,11 +31,9 @@ class Coroutine
     private $source;
 
 
-    public function __construct(callable $coroutine, ?Channel $channel = null)
+    public function __construct(callable $coroutine, array $args = [])
     {
-        $this->channel = $channel ?? new Channel();
-
-        $coroutine = call_user_func($coroutine, $this->descriptor);
+        $coroutine = call_user_func($coroutine, ...$args);
 
         if (!$coroutine instanceof \Generator) {
             throw new \InvalidArgumentException(
@@ -52,6 +47,10 @@ class Coroutine
 
     public function getChannel(): Channel
     {
+        if (!$this->channel) {
+            $this->channel = new Channel();
+        }
+
         return $this->channel;
     }
 
@@ -86,10 +85,10 @@ class Coroutine
         return $this->coroutine->valid() || $this->coroutine->valid();
     }
 
-    public static function create(callable $coroutine, ?Descriptor $descriptor = null): Signal
+    public static function create(callable $coroutine, array $args = []): Signal
     {
-        return new Signal(function (Task $task, Scheduler $scheduler) use ($descriptor, $coroutine) {
-            $task->send($scheduler->add(new static($coroutine, $descriptor)));
+        return new Signal(function (Task $task, Scheduler $scheduler) use ($coroutine, $args) {
+            $task->send($scheduler->add(new static($coroutine, $args)));
             $scheduler->schedule($task);
         });
     }
