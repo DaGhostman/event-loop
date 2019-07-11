@@ -36,6 +36,17 @@ if (!function_exists(__NAMESPACE__ . '/write')) {
     }
 }
 
+if (!function_exists(__NAMESPACE__ . '/scheduler')) {
+    function scheduler(): SchedulerInterface {
+        static $scheduler;
+        if (!$scheduler) {
+            $scheduler = new Scheduler;
+        }
+
+        return $scheduler;
+    }
+}
+
 if (!function_exists(__NAMESPACE__ . '/async')) {
     function async(callable $callable, ?int $timeout = null, ?callable $cancelFn = null): Signal
     {
