@@ -1,16 +1,15 @@
 <?php
-use Onion\Framework\Loop\Scheduler;
 use Onion\Framework\Loop\Coroutine;
 use Onion\Framework\Event\Dispatcher;
 use Onion\Framework\Event\ListenerProviders\AggregateProvider;
 use Onion\Framework\Event\ListenerProviders\SimpleProvider;
+use Onion\Framework\Loop\Signal;
+use function Onion\Framework\Loop\scheduler;
 
 require __DIR__ . '/../vendor/autoload.php';
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-
-$scheduler = new Scheduler;
 
 class TestEvent {}
 
@@ -31,7 +30,7 @@ $basic2 = new SimpleProvider([
 $aggregate->addProvider($basic1, $basic2);
 
 $dispatcher = new Dispatcher($aggregate);
-$task = Coroutine::create(function () use ($dispatcher) {
+$task = Coroutine::create(function ($dispatcher) {
     yield Coroutine::create(function () {
         echo "Coroutine 1\n";
         yield;
@@ -42,10 +41,10 @@ $task = Coroutine::create(function () use ($dispatcher) {
         echo "Coroutine 2\n";
         yield;
     });
-});
+}, [$dispatcher]);
 
 
-$scheduler->add(new Coroutine(function () use ($task) {
-    yield $task;
-}));
-$scheduler->start();
+scheduler()->add(new Coroutine(function (Signal $signal) {
+    yield $signal;
+}, [$task]));
+scheduler()->start();

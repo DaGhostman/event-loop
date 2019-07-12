@@ -2,8 +2,8 @@
 
 use function Onion\Framework\Loop\async;
 use Onion\Framework\Loop\Coroutine;
-use Onion\Framework\Loop\Scheduler;
 use Onion\Framework\Promise\Promise;
+use function Onion\Framework\Loop\scheduler;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 error_reporting(E_ALL);
@@ -35,7 +35,5 @@ $master = new Coroutine(function () {
 
 });
 
-$scheduler = new Scheduler();
-$scheduler->add($master);
-
-$scheduler->start();
+scheduler()->add($master);
+scheduler()->start();

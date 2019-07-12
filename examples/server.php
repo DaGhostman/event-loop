@@ -2,10 +2,9 @@
 use function Onion\Framework\Loop\read;
 use function Onion\Framework\Loop\write;
 use Onion\Framework\Loop\Coroutine;
-use Onion\Framework\Loop\Descriptor;
-use Onion\Framework\Loop\Scheduler;
 use Onion\Framework\Loop\Socket;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
+use function Onion\Framework\Loop\scheduler;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
@@ -20,7 +19,7 @@ class Server
         $socket = new Socket($sock);
         $socket->unblock();
 
-        return new Coroutine(function (Socket $socket) use ($port) {
+        return new Coroutine(function (Socket $socket, int $port) {
             echo "Server listening on {$port}\n";
             while (true) {
                 yield read($socket, function (ResourceInterface $socket) {
@@ -41,11 +40,10 @@ class Server
                     });
                 });
             }
-        }, $socket);
+        }, [$socket, $port]);
     }
 }
 
-$scheduler = new Scheduler;
-$scheduler->add(Server::listen(8080));
+scheduler()->add(Server::listen(8080));
 
 $scheduler->start();
