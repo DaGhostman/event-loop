@@ -1,6 +1,5 @@
 <?php
 use Onion\Framework\Loop\Coroutine;
-use Onion\Framework\Loop\Scheduler;
 use Onion\Framework\Loop\Timer;
 use function Onion\Framework\Loop\scheduler;
 

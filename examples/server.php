@@ -23,7 +23,7 @@ class Server
             echo "Server listening on {$port}\n";
             while (true) {
                 yield read($socket, function (ResourceInterface $socket) {
-                    $connection = $socket->accept();
+                    $connection = yield $socket->accept(null);
                     $connection->unblock();
 
                     if (!$connection->isAlive()) {
@@ -46,4 +46,4 @@ class Server
 
 scheduler()->add(Server::listen(8080));
 
-$scheduler->start();
+scheduler()->start();
