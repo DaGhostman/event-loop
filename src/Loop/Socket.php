@@ -33,7 +33,10 @@ class Socket extends Descriptor implements SocketInterface
     {
         $waitFn = function (TaskInterface $task, SchedulerInterface $scheduler, ResourceInterface $resource, ?int $timeout) {
             try {
-                $task->send(new Descriptor(@stream_socket_accept($resource->getDescriptor(), $timeout)));
+                $descriptor = new Descriptor(@stream_socket_accept($resource->getDescriptor(), $timeout));
+                $descriptor->unblock();
+
+                $task->send($descriptor);
             } catch (\Throwable $ex) {
                 $task->throw($ex);
             }
