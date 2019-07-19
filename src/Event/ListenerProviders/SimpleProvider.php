@@ -17,7 +17,7 @@ class SimpleProvider implements ListenerProviderInterface
         $class = get_class($event);
         $transformed = str_replace('\\', ".", ltrim($class, '\\'));
 
-        return $this->listeners[get_class($event)] ??
+        return $this->listeners[$class] ??
             $this->listeners[$transformed] ??
             [];
     }
