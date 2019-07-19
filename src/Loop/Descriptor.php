@@ -36,8 +36,11 @@ class Descriptor implements ResourceInterface
 
     public function close(): bool
     {
-        return stream_socket_shutdown($this->resource, STREAM_SHUT_RDWR) &&
-            fclose($this->resource);
+        if ($this->isAlive()) {
+            stream_socket_shutdown($this->resource, STREAM_SHUT_RDWR);
+        }
+
+        return fclose($this->resource);
     }
 
     public function isAlive(): bool
