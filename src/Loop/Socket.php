@@ -3,10 +3,10 @@
 namespace Onion\Framework\Loop;
 
 use Onion\Framework\Loop\Descriptor;
+use Onion\Framework\Loop\Interfaces\ResourceInterface;
+use Onion\Framework\Loop\Interfaces\SchedulerInterface;
 use Onion\Framework\Loop\Interfaces\SocketInterface;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
-use Onion\Framework\Loop\Interfaces\SchedulerInterface;
-use Onion\Framework\Loop\Interfaces\ResourceInterface;
 
 class Socket extends Descriptor implements SocketInterface
 {
@@ -32,7 +32,11 @@ class Socket extends Descriptor implements SocketInterface
     public function accept(?int $timeout = 0): Signal
     {
         $waitFn = function (TaskInterface $task, SchedulerInterface $scheduler, ResourceInterface $resource, ?int $timeout) {
-            $task->send(new Descriptor(@stream_socket_accept($resource->getDescriptor(), $timeout)));
+            try {
+                $task->send(new Descriptor(@stream_socket_accept($resource->getDescriptor(), $timeout)));
+            } catch (\Throwable $ex) {
+                $task->throw($ex);
+            }
             yield $scheduler->schedule($task);
         };
 
