@@ -125,3 +125,9 @@ if (!function_exists(__NAMESPACE__ . '/async')) {
         });
     }
 }
+
+if (!function_exists(__NAMESPACE__ . '\coroutine')) {
+    function coroutine(callable $fn, array $args = []): int {
+        return scheduler()->add(new Coroutine($fn, $args));
+    }
+}
