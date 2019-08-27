@@ -1,15 +1,16 @@
 <?php
 namespace Onion\Framework\Loop;
 
+use Onion\Framework\Loop\Interfaces\AsyncResourceInterface;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
-use Onion\Framework\Loop\Interfaces\SchedulerInterface;
-use Onion\Framework\Loop\Interfaces\TaskInterface;
-use Onion\Framework\Loop\Signal;
+use Onion\Framework\Loop\Traits\AsyncResourceTrait;
 
-class Descriptor implements ResourceInterface
+class Descriptor implements AsyncResourceInterface
 {
     private $resource;
     private $resourceId;
+
+    use AsyncResourceTrait;
 
     public function __construct($resource)
     {
@@ -55,49 +56,8 @@ class Descriptor implements ResourceInterface
         return $this->resourceId;
     }
 
-    public function lock(int $lockType = LOCK_NB | LOCK_SH): bool
-    {
-        if (!stream_supports_lock($this->resource)) {
-            return true;
-        }
-
-        return flock($this->resource, $lockType);
-    }
-
-    public function unlock(): bool
-    {
-        if (!stream_supports_lock($this->resource)) {
-            return true;
-        }
-
-        return flock($this->resource, LOCK_UN | LOCK_NB);
-    }
-
-    public function block(): bool
-    {
-        return stream_set_blocking($this->resource, true);
-    }
-
-    public function unblock(): bool
-    {
-        return stream_set_blocking($this->resource, false);
-    }
-
     public function getDescriptor()
     {
         return $this->resource;
-    }
-
-    public function wait(int $operation = self::OPERATION_READ)
-    {
-        return new Signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($operation) {
-            if (($operation & static::OPERATION_READ) === static::OPERATION_READ) {
-                $scheduler->onRead($this, $task);
-            }
-
-            if (($operation & static::OPERATION_WRITE) === static::OPERATION_WRITE) {
-                $scheduler->onWrite($this, $task);
-            }
-        });
     }
 }
