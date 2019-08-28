@@ -1,15 +1,12 @@
 <?php
 namespace Onion\Framework\Process;
 
-use function Onion\Framework\Loop\async;
 use function Onion\Framework\Loop\coroutine;
 use function Onion\Framework\Loop\read;
 use Onion\Framework\Loop\Descriptor;
 use Onion\Framework\Loop\Interfaces\AsyncResourceInterface;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
-use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Traits\AsyncResourceTrait;
-use Onion\Framework\Promise\Promise;
 
 class Process extends Descriptor implements AsyncResourceInterface
 {
