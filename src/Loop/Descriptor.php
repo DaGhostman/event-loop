@@ -2,7 +2,6 @@
 namespace Onion\Framework\Loop;
 
 use Onion\Framework\Loop\Interfaces\AsyncResourceInterface;
-use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Loop\Traits\AsyncResourceTrait;
 
 class Descriptor implements AsyncResourceInterface
@@ -27,28 +26,35 @@ class Descriptor implements AsyncResourceInterface
 
     public function read(int $size): string
     {
-        return fread($this->resource, $size);
+        if (!is_readable($this)) {
+            throw new \LogicException("Reading from non-readable stream");
+        }
+
+        return fread($this->getDescriptor(), $size);
     }
 
     public function write(string $data): int
     {
-        return fwrite($this->resource, $data);
+        if (!is_writeable($this)) {
+            throw new \LogicException("Writing to non-writable stream");
+        }
+        return fwrite($this->getDescriptor(), $data);
     }
 
     public function close(): bool
     {
         if ($this->isAlive()) {
-            stream_socket_shutdown($this->resource, STREAM_SHUT_RDWR);
+            stream_socket_shutdown($this->getDescriptor(), STREAM_SHUT_RDWR);
         }
 
-        return fclose($this->resource);
+        return fclose($this->getDescriptor());
     }
 
     public function isAlive(): bool
     {
-        return $this->resource &&
-            is_resource($this->resource) &&
-            !feof($this->resource);
+        return $this->getDescriptor() &&
+            is_resource($this->getDescriptor()) &&
+            !feof($this->getDescriptor());
     }
 
     public function getDescriptorId(): int
