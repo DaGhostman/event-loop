@@ -1,6 +1,8 @@
 <?php
 namespace Onion\Framework\Process;
 
+use function Onion\Framework\Loop\coroutine;
+use function Onion\Framework\Loop\read;
 use Onion\Framework\Loop\Descriptor;
 use Onion\Framework\Loop\Interfaces\AsyncResourceInterface;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
@@ -16,15 +18,20 @@ class Process extends Descriptor implements AsyncResourceInterface
 
     use AsyncResourceTrait;
 
-    private function __construct($resource, ResourceInterface $input, ResourceInterface $output)
-    {
+    private function __construct(
+        $resource,
+        ResourceInterface $input,
+        ResourceInterface $output,
+        ResourceInterface $error = null
+    ) {
         parent::__construct($resource);
 
         $this->input = $input;
         $this->output = $output;
+        $this->err = $error;
     }
 
-    public static function exec(string $command, array $args, array $env = []): Process
+    public static function exec(string $command, array $args, array $env = [], ?string $cwd = null): Process
     {
         $args = array_map('escapeshellarg', $args);
         array_unshift($args, $command);
@@ -32,15 +39,14 @@ class Process extends Descriptor implements AsyncResourceInterface
         $proc = proc_open(implode(' ', $args), [
             ['pipe', 'r'],
             ['pipe', 'w'],
-            ['pipe', 'a'],
-        ], $pipes, getcwd(), !empty($env) ? $env : getenv(), [
-            'bypass_shell' => true,
-        ]);
+            ['pipe', 'w+'],
+        ], $pipes, $cwd ?? getcwd(), array_merge(getenv(), $env));
 
-        return new self(
+        return new Process(
             $proc,
             new Descriptor($pipes[0]),
-            new Descriptor($pipes[1])
+            new Descriptor($pipes[1]),
+            new Descriptor($pipes[2])
         );
     }
 
@@ -86,13 +92,15 @@ class Process extends Descriptor implements AsyncResourceInterface
     public function unblock(): bool
     {
         return $this->input->unblock() &&
-            $this->output->unblock();
+            $this->output->unblock() &&
+            $this->err->unblock();
     }
 
     public function block(): bool
     {
         return $this->input->block() &&
-            $this->output->block();
+            $this->output->block() &&
+            $this->err->block();
     }
 
     public function wait(int $operation = self::OPERATION_READ)
@@ -112,11 +120,31 @@ class Process extends Descriptor implements AsyncResourceInterface
     {
         return $this->input->close() &&
             $this->output->close() &&
-            proc_close($this->getDescriptor());
+            ($this->exitCode = proc_close($this->getDescriptor()));
+    }
+
+    public function kill(int $signal = 15): bool
+    {
+        return proc_terminate($this->getDescriptor(), $signal);
     }
 
     public function isAlive(): bool
     {
         return !$this->isTerminated();
+    }
+
+    public function onError(callable $callback): void
+    {
+        coroutine(function (ResourceInterface $stream, callable $callback) {
+            if ($stream->isAlive()) {
+                return;
+            }
+
+            yield read($stream, function(ResourceInterface $stream) use (&$callback) {
+                yield call_user_func($callback, $stream);
+
+                $this->onError($callback);
+            });
+        }, [$this->err, $callback]);
     }
 }
