@@ -1,18 +1,23 @@
 <?php
 namespace Onion\Framework\Process;
 
+use function Onion\Framework\Loop\async;
 use function Onion\Framework\Loop\coroutine;
 use function Onion\Framework\Loop\read;
 use Onion\Framework\Loop\Descriptor;
 use Onion\Framework\Loop\Interfaces\AsyncResourceInterface;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
+use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Traits\AsyncResourceTrait;
+use Onion\Framework\Promise\Promise;
 
 class Process extends Descriptor implements AsyncResourceInterface
 {
     private $input;
     private $output;
     private $err;
+
+    private $restartCallback;
 
     private $exitCode = -1;
 
@@ -22,13 +27,18 @@ class Process extends Descriptor implements AsyncResourceInterface
         $resource,
         ResourceInterface $input,
         ResourceInterface $output,
-        ResourceInterface $error = null
+        ResourceInterface $error,
+        callable $restartCallback = null
     ) {
         parent::__construct($resource);
 
         $this->input = $input;
         $this->output = $output;
         $this->err = $error;
+
+        $this->restartCallback = $restartCallback ?? function () {
+            throw new \RuntimeException('Process cannot be restarted');
+        };
     }
 
     public static function exec(string $command, array $args, array $env = [], ?string $cwd = null): Process
@@ -36,18 +46,23 @@ class Process extends Descriptor implements AsyncResourceInterface
         $args = array_map('escapeshellarg', $args);
         array_unshift($args, $command);
 
-        $proc = proc_open(implode(' ', $args), [
-            ['pipe', 'r'],
-            ['pipe', 'w'],
-            ['pipe', 'w+'],
-        ], $pipes, $cwd ?? getcwd(), array_merge(getenv(), $env));
+        $factory = function () use ($args, $env, $cwd, &$factory) {
+            $proc = proc_open(implode(' ', $args), [
+                ['pipe', 'r'],
+                ['pipe', 'w'],
+                ['pipe', 'w+'],
+            ], $pipes, $cwd ?? getcwd(), array_merge(getenv(), $env));
 
-        return new Process(
-            $proc,
-            new Descriptor($pipes[0]),
-            new Descriptor($pipes[1]),
-            new Descriptor($pipes[2])
-        );
+            return new Process(
+                $proc,
+                new Descriptor($pipes[0]),
+                new Descriptor($pipes[1]),
+                new Descriptor($pipes[2]),
+                $factory
+            );
+        };
+
+        return $factory();
     }
 
     public function getPid(): int
@@ -146,5 +161,15 @@ class Process extends Descriptor implements AsyncResourceInterface
                 $this->onError($callback);
             });
         }, [$this->err, $callback]);
+    }
+
+    public function restart(): Process
+    {
+        return ($this->restartCallback)();
+    }
+
+    public function __debugInfo()
+    {
+        return proc_get_status($this->getDescriptor());
     }
 }
