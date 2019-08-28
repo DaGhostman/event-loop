@@ -53,10 +53,10 @@ if (!function_exists(__NAMESPACE__ . '\async')) {
         return new Signal(function (Task $task, Scheduler $scheduler) use ($callable, $timeout, $cancelFn) {
             $coroutine = null;
             $promise = null;
-            $promise = new class(function ($resolve, $reject) use ($scheduler, $callable, &$coroutine) {
-                $coroutine = $scheduler->add(new Coroutine(function () use (&$resolve, &$reject, $callable) {
+            $promise = new class(function ($resolve, $reject) use ($callable, &$coroutine) {
+                $coroutine = coroutine(function (callable $callback) use (&$resolve, &$reject) {
                     try {
-                        $value = call_user_func($callable);
+                        $value = call_user_func($callback);
 
                         if ($value instanceof \Generator) {
                             yield from $value;
@@ -68,7 +68,7 @@ if (!function_exists(__NAMESPACE__ . '\async')) {
                     } catch (\Throwable $ex) {
                         $reject($ex);
                     }
-                }));
+                }, [$callable]);
 
             }, function () use (&$promise) {
                 while ($promise->isPending()) {
@@ -94,7 +94,7 @@ if (!function_exists(__NAMESPACE__ . '\async')) {
                     }
 
                     if ($this->isFulfilled()) {
-                        yield new Result($this->getValue());
+                        return $this->getValue();
                     }
 
                     if ($this->isRejected()) {
@@ -132,7 +132,7 @@ if (!function_exists(__NAMESPACE__ . '\coroutine')) {
     }
 }
 
-if (!function_exists(__NAMESPACE__ . '\is_resource_readable')) {
+if (!function_exists(__NAMESPACE__ . '\is_readable')) {
     function is_readable(ResourceInterface $resource): bool {
         $modes = [
             'r' => true, 'w+' => true, 'r+' => true, 'x+' => true, 'c+' => true,
@@ -147,7 +147,7 @@ if (!function_exists(__NAMESPACE__ . '\is_resource_readable')) {
     }
 }
 
-if (!function_exists(__NAMESPACE__ . '\is_resource_writeable')) {
+if (!function_exists(__NAMESPACE__ . '\is_writeable')) {
     function is_writeable(ResourceInterface $resource): bool {
         $modes = [
             'w' => true, 'w+' => true, 'rw' => true, 'r+' => true, 'x+' => true,
