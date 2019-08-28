@@ -8,7 +8,7 @@ use Onion\Framework\Loop\Interfaces\TaskInterface;
 use Onion\Framework\Loop\Scheduler;
 use Onion\Framework\Promise\AwaitablePromise as Promise;
 
-if (!function_exists(__NAMESPACE__ . '/read')) {
+if (!function_exists(__NAMESPACE__ . '\read')) {
     function _read(ResourceInterface $socket) {
         return new Signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($socket) {
             $scheduler->onRead($socket, $task);
@@ -22,7 +22,7 @@ if (!function_exists(__NAMESPACE__ . '/read')) {
     }
 }
 
-if (!function_exists(__NAMESPACE__ . '/write')) {
+if (!function_exists(__NAMESPACE__ . '\write')) {
     function _write($socket) {
         return new Signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($socket) {
             $scheduler->onWrite($socket, $task);
@@ -36,7 +36,7 @@ if (!function_exists(__NAMESPACE__ . '/write')) {
     }
 }
 
-if (!function_exists(__NAMESPACE__ . '/scheduler')) {
+if (!function_exists(__NAMESPACE__ . '\scheduler')) {
     function scheduler(): SchedulerInterface {
         static $scheduler;
         if (!$scheduler) {
@@ -47,7 +47,7 @@ if (!function_exists(__NAMESPACE__ . '/scheduler')) {
     }
 }
 
-if (!function_exists(__NAMESPACE__ . '/async')) {
+if (!function_exists(__NAMESPACE__ . '\async')) {
     function async(callable $callable, ?int $timeout = null, ?callable $cancelFn = null): Signal
     {
         return new Signal(function (Task $task, Scheduler $scheduler) use ($callable, $timeout, $cancelFn) {
@@ -129,5 +129,35 @@ if (!function_exists(__NAMESPACE__ . '/async')) {
 if (!function_exists(__NAMESPACE__ . '\coroutine')) {
     function coroutine(callable $fn, array $args = []): int {
         return scheduler()->add(new Coroutine($fn, $args));
+    }
+}
+
+if (!function_exists(__NAMESPACE__ . '\is_resource_readable')) {
+    function is_readable(ResourceInterface $resource): bool {
+        $modes = [
+            'r' => true, 'w+' => true, 'r+' => true, 'x+' => true, 'c+' => true,
+            'rb' => true, 'w+b' => true, 'r+b' => true, 'x+b' => true,
+            'c+b' => true, 'rt' => true, 'w+t' => true, 'r+t' => true,
+            'x+t' => true, 'c+t' => true, 'a+' => true,
+        ];
+
+        $metadata = stream_get_meta_data($resource->getDescriptor());
+
+        return isset($modes[$metadata['mode']]);
+    }
+}
+
+if (!function_exists(__NAMESPACE__ . '\is_resource_writeable')) {
+    function is_writeable(ResourceInterface $resource): bool {
+        $modes = [
+            'w' => true, 'w+' => true, 'rw' => true, 'r+' => true, 'x+' => true,
+            'c+' => true, 'wb' => true, 'w+b' => true, 'r+b' => true,
+            'x+b' => true, 'c+b' => true, 'w+t' => true, 'r+t' => true,
+            'x+t' => true, 'c+t' => true, 'a' => true, 'a+' => true,
+        ];
+
+        $metadata = stream_get_meta_data($resource->getDescriptor());
+
+        return isset($modes[$metadata['mode']]);
     }
 }
