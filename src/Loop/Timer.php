@@ -30,6 +30,7 @@ class Timer
                     $tick += $interval;
                 }
 
+                usleep(10000);
                 yield;
             }
         };
