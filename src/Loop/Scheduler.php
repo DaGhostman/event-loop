@@ -91,6 +91,7 @@ class Scheduler implements SchedulerInterface
         }
 
         $this->taskMap[$tid]->kill();
+        unset($this->taskMap[$tid]);
         return true;
     }
 
@@ -179,7 +180,6 @@ class Scheduler implements SchedulerInterface
         return new Coroutine(function () {
             while ($this->started) {
                 if (!empty($this->readTasks) || !empty($this->writeTasks)) {
-
                     if ($this->taskQueue->isEmpty()) {
                         $this->ioPoll(null);
                     } else {
