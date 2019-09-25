@@ -27,10 +27,6 @@ class Coroutine
     /** @var \Throwable $exception */
     private $exception;
 
-    /** @var \Generator $source */
-    private $source;
-
-
     public function __construct(callable $coroutine, array $args = [])
     {
         $coroutine = call_user_func($coroutine, ...$args);
@@ -41,7 +37,6 @@ class Coroutine
             );
         }
 
-        $this->source = $coroutine;
         $this->coroutine = $this->wrap($coroutine);
     }
 
