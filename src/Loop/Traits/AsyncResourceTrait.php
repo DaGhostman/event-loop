@@ -1,6 +1,7 @@
 <?php
 namespace Onion\Framework\Loop\Traits;
 
+use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Loop\Interfaces\SchedulerInterface;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
 use Onion\Framework\Loop\Signal;
@@ -31,13 +32,15 @@ trait AsyncResourceTrait
             throw new \LogicException('Unable to wait dead stream');
         }
 
-        return new Signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($operation) {
+        /** @var ResourceInterface $self */
+        $self = $this;
+        return new Signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($operation, $self) {
             if (($operation & static::OPERATION_READ) === static::OPERATION_READ) {
-                $scheduler->onRead($this, $task);
+                $scheduler->onRead($self, $task);
             }
 
             if (($operation & static::OPERATION_WRITE) === static::OPERATION_WRITE) {
-                $scheduler->onWrite($this, $task);
+                $scheduler->onWrite($self, $task);
             }
         });
     }
