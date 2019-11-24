@@ -1,6 +1,7 @@
 <?php
 namespace Onion\Framework\Loop\Traits;
 
+use Onion\Framework\Loop\Exceptions\DeadStreamException;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Loop\Interfaces\SchedulerInterface;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
@@ -11,7 +12,7 @@ trait AsyncResourceTrait
     public function block(): bool
     {
         if (!$this->isAlive()) {
-            throw new \LogicException('Unable to block dead stream');
+            throw new \LogicException('block');
         }
 
         return stream_set_blocking($this->getDescriptor(), true);
@@ -20,7 +21,7 @@ trait AsyncResourceTrait
     public function unblock(): bool
     {
         if (!$this->isAlive()) {
-            throw new \LogicException('Unable to unblock dead stream');
+            throw new DeadStreamException('unblock');
         }
 
         return stream_set_blocking($this->getDescriptor(), false);
@@ -29,7 +30,7 @@ trait AsyncResourceTrait
     public function wait(int $operation = self::OPERATION_READ)
     {
         if (!$this->isAlive()) {
-            throw new \LogicException('Unable to wait dead stream');
+            return;
         }
 
         /** @var ResourceInterface $self */

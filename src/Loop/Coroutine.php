@@ -7,7 +7,6 @@ use Onion\Framework\Loop\Interfaces\SchedulerInterface as Scheduler;
 use Onion\Framework\Loop\Interfaces\TaskInterface as Task;
 use Onion\Framework\Loop\Signal;
 use RuntimeException;
-use SplStack;
 use Throwable;
 
 class Coroutine
@@ -77,7 +76,7 @@ class Coroutine
 
     public function valid(): bool
     {
-        return $this->coroutine->valid() || $this->coroutine->valid();
+        return $this->coroutine->valid();
     }
 
     public static function create(callable $coroutine, array $args = []): Signal
@@ -167,9 +166,9 @@ class Coroutine
         return $this->ticks;
     }
 
-    private function wrap(\Generator $generator)
+    private function wrap(\Closure $generator)
     {
-        $stack = new SplStack;
+        $stack = new \SplStack;
         $exception = null;
 
         while (true) {

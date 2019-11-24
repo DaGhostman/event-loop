@@ -3,6 +3,7 @@
 namespace Onion\Framework\Loop;
 
 use Onion\Framework\Loop\Descriptor;
+use Onion\Framework\Loop\Exceptions\DeadStreamException;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Loop\Interfaces\SchedulerInterface;
 use Onion\Framework\Loop\Interfaces\SocketInterface;
@@ -35,14 +36,18 @@ class Socket extends Descriptor implements SocketInterface
             try {
                 yield $resource->wait();
                 $descriptor = new Descriptor(@stream_socket_accept($resource->getDescriptor(), $timeout));
-                $descriptor->unblock();
+                try {
+                    $descriptor->unblock();
+                } catch (DeadStreamException $ex) {
+                    // Unable to unblock
+                }
 
                 $task->send($descriptor);
             } catch (\Throwable $ex) {
                 $task->throw($ex);
+            } finally {
+                $scheduler->schedule($task);
             }
-
-            yield $scheduler->schedule($task);
         };
 
         return new Signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($timeout, $waitFn) {

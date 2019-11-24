@@ -1,6 +1,7 @@
 <?php
 namespace Onion\Framework\Loop;
 
+use Onion\Framework\Loop\Exceptions\BadStreamOperation;
 use Onion\Framework\Loop\Interfaces\AsyncResourceInterface;
 use Onion\Framework\Loop\Traits\AsyncResourceTrait;
 
@@ -27,7 +28,7 @@ class Descriptor implements AsyncResourceInterface
     public function read(int $size): string
     {
         if (!is_readable($this)) {
-            throw new \LogicException("Reading from non-readable stream");
+            throw new BadStreamOperation('read');
         }
 
         return fread($this->getDescriptor(), $size);
@@ -36,7 +37,7 @@ class Descriptor implements AsyncResourceInterface
     public function write(string $data): int
     {
         if (!is_writeable($this)) {
-            throw new \LogicException("Writing to non-writable stream");
+            throw new BadStreamOperation('write');
         }
         return fwrite($this->getDescriptor(), $data);
     }
