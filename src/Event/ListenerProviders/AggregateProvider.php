@@ -1,4 +1,5 @@
 <?php
+
 namespace Onion\Framework\Event\ListenerProviders;
 
 use Psr\EventDispatcher\ListenerProviderInterface;
@@ -7,7 +8,7 @@ class AggregateProvider implements \IteratorAggregate, ListenerProviderInterface
 {
     private $providers = [];
 
-    public function addProvider(ListenerProviderInterface ...$provider)
+    public function addProvider(ListenerProviderInterface ...$provider): void
     {
         $this->providers = array_merge($this->providers, $provider);
     }
@@ -21,7 +22,7 @@ class AggregateProvider implements \IteratorAggregate, ListenerProviderInterface
         })($event, $this->providers);
     }
 
-    public function getIterator()
+    public function getIterator(): \Traversable
     {
         return new \ArrayIterator($this->providers);
     }

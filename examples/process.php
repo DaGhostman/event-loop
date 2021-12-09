@@ -1,29 +1,35 @@
 <?php
 
+use function Onion\Framework\Loop\coroutine;
 use function Onion\Framework\Loop\scheduler;
-use Onion\Framework\Loop\Coroutine;
+use function Onion\Framework\Loop\tick;
 
 use Onion\Framework\Process\Process;
 
 require __DIR__ . '/../vendor/autoload.php';
 
-scheduler()->add(new Coroutine(function () {
+coroutine(function () {
     $proc = Process::exec('composer', ['info']);
     $proc->unblock();
-    $proc->onError(function ($s) {
-        echo "Error: " . $s->read(8192);
-    });
     echo "Started process: {$proc->getPid()}\n";
 
+    coroutine(function () {
+        for ($i = 0; $i < 5; $i++) {
+            echo '+';
+            tick();
+        }
+    });
+
     while ($proc->isAlive()) {
-        yield $proc->wait();
+        $proc->wait();
         echo "Output: \n";
         while (($chunk = $proc->read(1024)) !== '') {
             echo $chunk;
+            tick();
         }
         echo PHP_EOL;
     }
 
     echo "Exited with: {$proc->getExitCode()}\n";
-}));
+});
 scheduler()->start();

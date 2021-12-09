@@ -1,25 +1,17 @@
 <?php
+
 namespace Onion\Framework\Loop;
 
+use Fiber;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
 
 class Task implements TaskInterface
 {
-    protected $taskId;
-    protected $coroutine;
-
     protected $suspended = false;
     protected $killed = false;
 
-    public function __construct($taskId, Coroutine $coroutine)
+    public function __construct(private readonly Coroutine  $coroutine)
     {
-        $this->taskId = $taskId;
-        $this->coroutine = $coroutine;
-    }
-
-    public function getId(): int
-    {
-        return $this->taskId;
     }
 
     public function run()
@@ -27,59 +19,63 @@ class Task implements TaskInterface
         return $this->coroutine->run();
     }
 
-    public function suspend(): bool
+    public function suspend(mixed $value = null): mixed
     {
-        if ($this->isKilled()) {
-            return false;
+        $this->suspended = true;
+        if (!$this->coroutine->isPaused()) {
+            return $this->coroutine->suspend($value);
         }
 
-        $this->suspended = true;
-        return true;
+        return null;
     }
 
-    public function resume(): bool
+    public function resume(mixed $value = null): bool
     {
         if ($this->isKilled()) {
             return false;
         }
 
         $this->suspended = false;
+        $this->coroutine->send($value);
+
         return true;
     }
 
-    public function throw(\Throwable $ex): void
+    public function throw(\Throwable $ex): bool
     {
+        if ($this->isKilled()) {
+            return false;
+        }
+
+        $this->suspended = false;
         $this->coroutine->throw($ex);
-    }
 
-    public function send($value): void
-    {
-        $this->coroutine->send($value);
-    }
 
-    public function getChannel(): Channel
-    {
-        return $this->coroutine->getChannel();
+        return true;
     }
 
     public function kill(): void
     {
-        $this->getChannel()->close();
         $this->killed = true;
     }
 
     public function isKilled(): bool
     {
-        return $this->killed;
+        return $this->killed || $this->coroutine->isTerminated();
     }
 
     public function isFinished(): bool
     {
-        return ($this->isKilled() || !$this->coroutine->valid());
+        return $this->coroutine->isTerminated();
     }
 
     public function isPaused(): bool
     {
         return $this->suspended;
+    }
+
+    public static function create(callable $fn, array $args = []): TaskInterface
+    {
+        return new Task(new Coroutine(new Fiber($fn), $args));
     }
 }

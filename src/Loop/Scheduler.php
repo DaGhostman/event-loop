@@ -1,60 +1,52 @@
 <?php
+
+declare(strict_types=1);
+
 namespace Onion\Framework\Loop;
 
-use Onion\Framework\Loop\Coroutine;
-use Onion\Framework\Loop\Interfaces\ResourceInterface;
-use Onion\Framework\Loop\Interfaces\SchedulerInterface;
-use Onion\Framework\Loop\Interfaces\TaskInterface;
-use Onion\Framework\Loop\Task;
+use Fiber;
+use Onion\Framework\Loop\Interfaces\{CoroutineInterface, ResourceInterface, SchedulerInterface, TaskInterface};
+use Onion\Framework\Loop\{Coroutine, Task};
 use SplQueue;
 
 class Scheduler implements SchedulerInterface
 {
-    private $maxTaskId = 0;
-    private $taskMap = []; // taskId => task
-    private $taskQueue;
-
-    private $started = false;
+    private readonly \SplQueue $queue;
+    private bool $started = false;
 
     // resourceID => [socket, tasks]
-    protected $readTasks = [];
-    protected $writeTasks = [];
-    protected $exceptTasks = [];
+    protected array $reads = [];
+    protected array $writes = [];
+    protected array $errors = [];
 
-    public function __construct() {
-        $this->taskQueue = new SplQueue();
+    public function __construct()
+    {
+        $this->queue = new SplQueue();
+        $this->queue->setIteratorMode(
+            SplQueue::IT_MODE_FIFO | SplQueue::IT_MODE_DELETE
+        );
     }
 
-    public function add(Coroutine $coroutine): int
+    public function add(CoroutineInterface $coroutine): TaskInterface
     {
-        $tid = ++$this->maxTaskId;
-        $task = new Task($tid, $coroutine);
-        $this->taskMap[$tid] = $task;
+        $task = new Task($coroutine);
         $this->schedule($task);
-        return $tid;
-    }
 
-    public function getTask(int $id): TaskInterface
-    {
-        if (!isset($this->taskMap[$id])) {
-            throw new \InvalidArgumentException(
-                "No task with ID {$id} is running"
-            );
-        }
-
-        return $this->taskMap[$id];
+        return $task;
     }
 
     public function schedule(TaskInterface $task): void
     {
-        $this->taskQueue->enqueue($task);
+        $this->queue->enqueue($task);
     }
 
-    public function start(): void {
+    public function start(): void
+    {
         $this->started = true;
         $this->add($this->ioPollTask());
-        while (!$this->taskQueue->isEmpty()) {
-            $task = $this->taskQueue->dequeue();
+        while (!$this->queue->isEmpty()) {
+            /** @var TaskInterface $task */
+            $task = $this->queue->dequeue();
             if ($task->isKilled()) {
                 continue;
             }
@@ -64,93 +56,95 @@ class Scheduler implements SchedulerInterface
                 continue;
             }
 
-            $result = $task->run();
+            try {
+                $result = $task->run();
 
-            if ($result instanceof Signal) {
-                try {
+                if ($result instanceof Signal) {
                     $result($task, $this);
-                } catch (\Throwable $e) {
-                    $task->throw($e);
-                    $this->schedule($task);
+                    continue;
                 }
-                continue;
+            } catch (\Throwable $e) {
+                if ($task->isFinished()) {
+                    throw $e;
+                }
+
+                $task->throw($e);
+                $this->schedule($task);
             }
 
-
             if ($task->isFinished()) {
-                $this->killTask($task->getId());
+                $task->kill();
             } else {
                 $this->schedule($task);
             }
         }
     }
 
-    public function killTask($tid) {
-        if (!isset($this->taskMap[$tid])) {
-            return false;
-        }
-
-        $this->taskMap[$tid]->kill();
-        unset($this->taskMap[$tid]);
-        return true;
-    }
-
     public function onRead(ResourceInterface $resource, TaskInterface $task): void
     {
-        $socket = $resource->getDescriptorId();
+        $socket = $resource->getResourceId();
 
-        if (isset($this->readTasks[$socket])) {
-            $this->readTasks[$socket][1][] = $task;
+        if (isset($this->reads[$socket])) {
+            $this->reads[$socket][1][] = $task;
         } else {
-            $this->readTasks[$socket] = [$resource->getDescriptor(), [$task]];
+            $this->reads[$socket] = [$resource->getResource(), [$task]];
         }
     }
 
     public function onWrite(ResourceInterface $resource, TaskInterface $task): void
     {
-        $socket = $resource->getDescriptorId();
+        $socket = $resource->getResourceId();
 
-        if (isset($this->writeTasks[$socket])) {
-            $this->writeTasks[$socket][1][] = $task;
+        if (isset($this->writes[$socket])) {
+            $this->writes[$socket][1][] = $task;
         } else {
-            $this->writeTasks[$socket] = [$resource->getDescriptor(), [$task]];
+            $this->writes[$socket] = [$resource->getResource(), [$task]];
         }
     }
 
-    public function onExcept(ResourceInterface $resource, TaskInterface $task): void
+    public function onError(ResourceInterface $resource, TaskInterface $task): void
     {
-        $socket = $resource->getDescriptorId();
+        $socket = $resource->getResourceId();
 
-        if (isset($this->exceptTasks[$socket])) {
-            $this->exceptTasks[$socket][1][] = $task;
+        if (isset($this->errors[$socket])) {
+            $this->errors[$socket][1][] = $task;
         } else {
-            $this->exceptTasks[$socket] = [$resource->getDescriptor(), [$task]];
+            $this->errors[$socket] = [$resource->getResource(), [$task]];
         }
     }
 
-    protected function ioPoll($timeout) {
+    /**
+     * @return void
+     */
+    protected function ioPoll(?int $timeout): void
+    {
         $rSocks = [];
-        foreach ($this->readTasks as list($socket)) {
-            $rSocks[] = $socket;
+        foreach ($this->reads as [$socket]) {
+            if (is_resource($socket)) $rSocks[] = $socket;
+            else unset($this->reads[(int) $socket]);
         }
 
         $wSocks = [];
-        foreach ($this->writeTasks as list($socket)) {
-            $wSocks[] = $socket;
+        foreach ($this->writes as [$socket]) {
+            if (is_resource($socket)) $wSocks[] = $socket;
+            else unset($this->writes[(int) $socket]);
         }
 
         $eSocks = [];
-        foreach ($this->exceptTasks as list($socket)) {
-            $eSocks[] = $socket;
+        foreach ($this->errors as [$socket]) {
+            if (is_resource($socket)) $eSocks[] = $socket;
+            else unset($this->errors[(int) $socket]);
         }
 
         if ((empty($rSocks) && empty($wSocks)) || @!stream_select($rSocks, $wSocks, $eSocks, $timeout)) {
             return;
         }
 
+
         foreach ($rSocks as $socket) {
-            list(, $tasks) = $this->readTasks[(int) $socket];
-            unset($this->readTasks[(int) $socket]);
+            $id = (int) $socket;
+            [, $tasks] = $this->reads[$id];
+            unset($this->reads[$id]);
 
             foreach ($tasks as $task) {
                 $this->schedule($task);
@@ -158,8 +152,9 @@ class Scheduler implements SchedulerInterface
         }
 
         foreach ($wSocks as $socket) {
-            list(, $tasks) = $this->writeTasks[(int) $socket];
-            unset($this->writeTasks[(int) $socket]);
+            $id = (int) $socket;
+            [, $tasks] = $this->writes[$id];
+            unset($this->writes[$id]);
 
             foreach ($tasks as $task) {
                 $this->schedule($task);
@@ -167,8 +162,10 @@ class Scheduler implements SchedulerInterface
         }
 
         foreach ($eSocks as $socket) {
-            list(, $tasks) = $this->writeTasks[(int) $socket];
-            unset($this->exceptTasks[(int) $socket]);
+            $id = (int) $socket;
+            [, $tasks] = $this->errors[$id];
+            unset($this->errors[$id]);
+
 
             foreach ($tasks as $task) {
                 $this->schedule($task);
@@ -176,32 +173,31 @@ class Scheduler implements SchedulerInterface
         }
     }
 
-    protected function ioPollTask() {
-        return new Coroutine(function () {
+    protected function ioPollTask(): CoroutineInterface
+    {
+        return new Coroutine(new Fiber(function () {
             while ($this->started) {
-                if (!empty($this->readTasks) || !empty($this->writeTasks)) {
-                    if ($this->taskQueue->isEmpty()) {
+                if (
+                    !empty($this->reads) ||
+                    !empty($this->writes) ||
+                    !empty($this->errors)
+                ) {
+                    if ($this->queue->isEmpty()) {
                         $this->ioPoll(null);
                     } else {
                         $this->ioPoll(0);
                     }
                 } else {
-                    if ($this->taskQueue->isEmpty()) {
+                    if ($this->queue->isEmpty()) {
                         return;
                     }
                 }
 
-                yield;
+                signal(function ($task, $scheduler) {
+                    $task->resume(true);
+                    $scheduler->schedule($task);
+                });
             }
-        });
+        }));
     }
-
-    public function __debugInfo()
-    {
-        return [
-            'executed' => $this->maxTaskId,
-            'running' => count($this->taskQueue),
-        ];
-    }
-
 }

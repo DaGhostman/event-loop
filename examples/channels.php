@@ -1,46 +1,56 @@
 <?php
+
+use Onion\Framework\Loop\Channels\BufferedChannel;
 use Onion\Framework\Loop\Coroutine;
 use Onion\Framework\Loop\Timer;
+
+use function Onion\Framework\Loop\channel;
+use function Onion\Framework\Loop\coroutine;
 use function Onion\Framework\Loop\scheduler;
+use function Onion\Framework\Loop\tick;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-$server = new Coroutine(function () {
-    yield Coroutine::create(function () {
-        $child = yield Coroutine::create(function () {
-            while (Coroutine::isRunning()) {
-
-                yield Timer::after(function(int $id) {
-                    while (yield Coroutine::recv($id)) {
-                        echo "-";
-                    }
-                }, mt_rand(500, 3000), [yield Coroutine::id()]);
-            }
-        });
-
-        for ($i=0; $i<100; $i++) {
-            yield Timer::after(function(int $i, int $child) {
-                try {
-                    if (($i % 2) === 0) {
-                        echo "+";
-                        yield Coroutine::push($child, $i);
-                    }
-                } catch (\Exception $ex) {
-                    echo "{$ex->getMessage()}\n";
-                }
-            }, mt_rand(0, 1500), [$i, $child]);
+function startReceiver(int &$i, BufferedChannel $channel)
+{
+    return coroutine(function (BufferedChannel $channel) use (&$i) {
+        echo 'Starting receiver' . PHP_EOL;
+        while (!$channel->isClosed()) {
+            echo "Receiving {$channel->recv()}\n";
+            tick();
         }
+        echo 'Ending Receiver' . PHP_EOL;
+    }, [$channel]);
+}
 
+coroutine(function () {
+    try {
+        $bufferedChannel = channel(3);
+        $i = 0;
+        coroutine(function (BufferedChannel $channel) use (&$i) {
+            echo 'Starting sender' . PHP_EOL;
+            for (; $i < 100; $i++) {
+                $channel->send($i);
+                echo "{$i} sent\n";
+            }
+            $channel->close();
+            echo 'Ending sender' . PHP_EOL;
+        }, [$bufferedChannel]);
+    } catch (\Throwable $ex) {
+        var_dump($ex->getMessage());
+    }
 
-        yield Timer::after(function ($child) {
-            yield Coroutine::kill($child);
-        }, 10000, [$child]);
+    startReceiver($i, $bufferedChannel);
+    startReceiver($i, $bufferedChannel);
+    startReceiver($i, $bufferedChannel);
+    startReceiver($i, $bufferedChannel);
+    startReceiver($i, $bufferedChannel);
+    startReceiver($i, $bufferedChannel);
+    startReceiver($i, $bufferedChannel);
 
-    });
+    // $unbufferedChannel = channel();
 });
-
-scheduler()->add($server);
 scheduler()->start();

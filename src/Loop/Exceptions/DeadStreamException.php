@@ -1,4 +1,5 @@
 <?php
+
 namespace Onion\Framework\Loop\Exceptions;
 
 use Throwable;

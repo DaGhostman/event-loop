@@ -1,4 +1,5 @@
 <?php
+
 namespace Onion\Framework\Event\ListenerProviders;
 
 use Psr\EventDispatcher\ListenerProviderInterface;

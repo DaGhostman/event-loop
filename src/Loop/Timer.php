@@ -1,50 +1,47 @@
 <?php
+
 namespace Onion\Framework\Loop;
+
+use Closure;
 
 class Timer
 {
-    public static function create(callable $coroutine, int $interval, bool $repeating = true, array $args = []): Signal
+    public static function create(Closure $coroutine, int $interval, bool $repeating = true, array $args = []): void
     {
 
         $interval *= 0.001;
-        $timer = function ($coroutine, $interval, $repeating, $args) {
-            $start = microtime(true);
-            $tick = $start + $interval;
+        $timer =
+            function ($coroutine, $interval, $repeating, $args): void {
+                $start = microtime(true);
+                $tick = $start + $interval;
 
-            while (true) {
-                // if ($this->getTicks() === 1) {
-                $result = call_user_func($coroutine, ...$args);
-                // }
-
-                if ($tick <= microtime(true)) {
-                    if ($result instanceof \Generator) {
-                        yield from $result;
-                    } else {
-                        yield $result;
+                while (true) {
+                    if ($tick >= microtime(true)) {
+                        tick();
+                        continue;
                     }
+                    $coroutine(...$args);
 
                     if (!$repeating) {
                         break;
                     }
 
-                    $tick += $interval;
+                    $tick = microtime(true) + $interval;
+
+                    usleep(500);
                 }
+            };
 
-                usleep(10000);
-                yield;
-            }
-        };
-
-        return Coroutine::create($timer, [$coroutine, $interval, $repeating, $args]);
+        coroutine($timer, [$coroutine, $interval, $repeating, $args]);
     }
 
-    public static function interval(callable $coroutine, int $interval, array $args = []): Signal
+    public static function interval(callable $coroutine, int $interval, array $args = []): void
     {
-        return static::create($coroutine, $interval, true, $args);
+        static::create(Closure::fromCallable($coroutine), $interval, true, $args);
     }
 
-    public static function after(callable $coroutine, int $interval, array $args = []): Signal
+    public static function after(callable $coroutine, int $interval, array $args = []): void
     {
-        return static::create($coroutine, $interval, false, $args);
+        static::create(Closure::fromCallable($coroutine), $interval, false, $args);
     }
 }

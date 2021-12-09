@@ -1,13 +1,18 @@
 <?php
+
 namespace Onion\Framework\Event;
 
-use Onion\Framework\Loop\Coroutine;
-use Onion\Framework\Loop\Interfaces\SchedulerInterface;
-use Onion\Framework\Loop\Interfaces\TaskInterface;
-use Onion\Framework\Loop\Signal;
-use Psr\EventDispatcher\EventDispatcherInterface;
-use Psr\EventDispatcher\ListenerProviderInterface;
-use Psr\EventDispatcher\StoppableEventInterface;
+use Onion\Framework\Loop\Interfaces\{
+    SchedulerInterface,
+    TaskInterface
+};
+use Psr\EventDispatcher\{
+    EventDispatcherInterface,
+    ListenerProviderInterface,
+    StoppableEventInterface
+};
+
+use function Onion\Framework\Loop\{coroutine, signal};
 
 class Dispatcher implements EventDispatcherInterface
 {
@@ -18,10 +23,10 @@ class Dispatcher implements EventDispatcherInterface
         $this->listenerProvider = $listenerProvider;
     }
 
-    public function dispatch(object $event): Signal
+    public function dispatch(object $event): object
     {
-        return new Signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($event) {
-            $scheduler->add(new Coroutine(function () use ($task, $scheduler, $event) {
+        return signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($event) {
+            coroutine(function () use ($task, $scheduler, $event) {
                 $listeners = $this->listenerProvider->getListenersForEvent($event);
 
                 try {
@@ -30,19 +35,15 @@ class Dispatcher implements EventDispatcherInterface
                             break;
                         }
 
-                        yield call_user_func($listener, $event);
+                        coroutine($listener, [$event]);
                     }
-                    $task->send($event);
-
+                    $task->resume($event);
                 } catch (\Throwable $ex) {
                     $task->throw($ex);
+                } finally {
+                    $scheduler->schedule($task);
                 }
-
-
-                $scheduler->schedule($task);
-
-                yield;
-            }));
+            });
         });
     }
 }

@@ -2,54 +2,26 @@
 
 namespace Onion\Framework\Loop;
 
-use Generator;
-use Onion\Framework\Loop\Interfaces\SchedulerInterface as Scheduler;
-use Onion\Framework\Loop\Interfaces\TaskInterface as Task;
-use Onion\Framework\Loop\Signal;
-use RuntimeException;
+use \Fiber;
+use Onion\Framework\Loop\Interfaces\{
+    CoroutineInterface,
+    SchedulerInterface as Scheduler,
+    TaskInterface as Task,
+};
 use Throwable;
 
-class Coroutine
+class Coroutine implements CoroutineInterface
 {
-    /** @var \Generator $coroutine */
-    private $coroutine;
+    private bool $started = false;
+    private mixed $result = null;
+    private ?Throwable $exception = null;
 
-    /** @var int $ticks */
-    private $ticks = 0;
-
-    /** @var mixed $result */
-    private $result;
-
-    /** @var Channel $Descriptor */
-    private $channel;
-
-    /** @var \Throwable $exception */
-    private $exception;
-
-    public function __construct(callable $coroutine, array $args = [])
+    public function __construct(private readonly Fiber $coroutine, private readonly array $args = [])
     {
-        $coroutine = call_user_func($coroutine, ...$args);
-
-        if (!$coroutine instanceof \Generator) {
-            throw new \InvalidArgumentException(
-                "Provided callable must return an instance of Generator"
-            );
-        }
-
-        $this->coroutine = $this->wrap($coroutine);
     }
 
-    public function getChannel(): Channel
-    {
-        if (!$this->channel) {
-            $this->channel = new Channel();
-        }
-
-        return $this->channel;
-    }
-
-    public function send($result): void
-    {
+    public function send(mixed $result): void
+    {;
         $this->result = $result;
     }
 
@@ -58,17 +30,17 @@ class Coroutine
         $this->exception = $exception;
     }
 
-    public function run()
+    public function run(): mixed
     {
-        if ($this->ticks === 0) {
-            $this->ticks++;
-            return $this->coroutine->current();
+        if (!$this->started) {
+            $this->started = true;
+            return $this->coroutine->start(...$this->args);
         } elseif ($this->exception) {
             $result = $this->coroutine->throw($this->exception);
             $this->exception = null;
             return $result;
         } else {
-            $result = $this->coroutine->send($this->result);
+            $result = $this->coroutine->resume($this->result);
             $this->result = null;
             return $result;
         }
@@ -76,143 +48,39 @@ class Coroutine
 
     public function valid(): bool
     {
-        return $this->coroutine->valid();
+        return !$this->coroutine->isTerminated();
     }
 
-    public static function create(callable $coroutine, array $args = []): Signal
+    public static function task(): Task
     {
-        return new Signal(function (Task $task, Scheduler $scheduler) use ($coroutine, $args) {
-            $task->send($scheduler->add(new static($coroutine, $args)));
+        return signal(function (Task $task, Scheduler $scheduler) {
+            $task->resume($task);
             $scheduler->schedule($task);
         });
     }
 
-    public static function channel(?int $id = null): Signal
+    public function suspend(mixed $value): mixed
     {
-        return new Signal(function (Task $task, Scheduler $scheduler) use ($id) {
-            $task->send($scheduler->getTask(($id ?? $task->getId()))->getChannel());
-            $scheduler->schedule($task);
-        });
+        return $this->coroutine->suspend($value);
     }
 
-    public static function recv(): Signal
+    public function resume(mixed $value): mixed
     {
-        return new Signal(function (Task $task, Scheduler $scheduler) {
-            $scheduler->add(new Coroutine(function () use ($task, $scheduler) {
-                $task->send(yield from ($task->getChannel()->recv()));
-                $scheduler->schedule($task);
-            }));
-        });
+        return $this->coroutine->resume($value);
     }
 
-    public static function id(): Signal
+    public function isRunning(): bool
     {
-        return new Signal(function (Task $task, Scheduler $scheduler) {
-            $task->send($task->getId());
-            $scheduler->schedule($task);
-        });
+        return $this->coroutine->isStarted();
     }
 
-    public static function suspend(?int $id = null): Signal
+    public function isTerminated(): bool
     {
-        return new Signal(function (Task $task, Scheduler $scheduler) use ($id) {
-            $t = $scheduler->getTask($id ?? $task->getId());
-            if ($t->suspend()) {
-                $scheduler->schedule($task);
-            } else {
-                throw new \LogicException('Unable to suspend completed coroutine');
-            }
-        });
+        return $this->coroutine->isTerminated();
     }
 
-    public static function resume(?int $id = null): Signal
+    public function isPaused(): bool
     {
-        return new Signal(function (Task $task, Scheduler $scheduler) use ($id) {
-            if ($scheduler->getTask($id ?? $task->getId())->resume()) {
-                $scheduler->schedule($task);
-            } else {
-                throw new \LogicException('Unable to resume completed coroutine');
-            }
-        });
-    }
-
-    public static function kill(?int $id = null): Signal
-    {
-        return new Signal(function (Task $task, Scheduler $scheduler) use ($id) {
-            if ($scheduler->killTask($id ?? $task->getId())) {
-                $scheduler->schedule($task);
-            } else {
-                throw new RuntimeException("Unable to kill coroutine {$id}");
-            }
-        });
-    }
-
-    public static function isRunning(?int $id = null): Signal
-    {
-        return new Signal(function (Task $task, Scheduler $scheduler) use ($id) {
-            try {
-                $running = !$scheduler->getTask($id ?? $task->getId())->isFinished();
-            } catch (\InvalidArgumentException $ex) {
-                $running = false;
-            }
-
-            $task->send($running);
-            $scheduler->schedule($task);
-        });
-    }
-
-    protected function getTicks(): int
-    {
-        return $this->ticks;
-    }
-
-    private function wrap(\Closure $generator)
-    {
-        $stack = new \SplStack;
-        $exception = null;
-
-        while (true) {
-            try {
-                if ($exception) {
-                    $generator->throw($exception);
-                    $exception = null;
-                    continue;
-                }
-
-                $value = $generator->current();
-
-                if ($value instanceof Generator) {
-                    $stack->push($generator);
-                    $generator = $value;
-                    continue;
-                }
-
-                if (!$generator->valid()) {
-                    if ($stack->isEmpty()) {
-                        return;
-                    }
-
-                    $generator = $stack->pop();
-                    $generator->send($value ? $value->getReturn() : null);
-                    continue;
-                }
-
-                try {
-                    $result = (yield $generator->key() => $value);
-                } catch (\Throwable $e) {
-                    $generator->throw($e);
-                    continue;
-                }
-
-                $generator->send($result);
-            } catch (\Throwable $ex) {
-                if ($stack->isEmpty()) {
-                    throw $ex;
-                }
-
-                $generator = $stack->pop();
-                $exception = $ex;
-            }
-        }
+        return $this->coroutine->isSuspended();
     }
 }

@@ -1,4 +1,5 @@
 <?php
+
 namespace Onion\Framework\Loop;
 
 use Onion\Framework\Loop\Interfaces\SchedulerInterface;
@@ -8,11 +9,13 @@ class Signal
 {
     protected $callback;
 
-    public function __construct(callable $callback) {
+    public function __construct(callable $callback)
+    {
         $this->callback = $callback;
     }
 
-    public function __invoke(TaskInterface $task, SchedulerInterface $scheduler) {
+    public function __invoke(TaskInterface $task, SchedulerInterface $scheduler)
+    {
         $callback = $this->callback;
         return $callback($task, $scheduler);
     }
