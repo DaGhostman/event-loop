@@ -9,16 +9,11 @@ use Countable;
 abstract class AbstractChannel implements Countable
 {
     private \SplQueue $queue;
-    private $open = true;
+    private bool $open = true;
 
     public function __construct()
     {
         $this->queue = new \SplQueue();
-    }
-
-    public function isEmpty(): bool
-    {
-        return $this->queue->isEmpty();
     }
 
     public function close(): void
@@ -33,9 +28,12 @@ abstract class AbstractChannel implements Countable
         }
     }
 
-    public function recv(): mixed
+    public function recv(): ChannelValue
     {
-        return $this->queue->dequeue();
+        return new ChannelValue(
+            $this->queue->dequeue(),
+            !$this->queue->isEmpty()
+        );
     }
 
     public function count(): int

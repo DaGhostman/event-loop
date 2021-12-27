@@ -6,12 +6,12 @@ use Closure;
 
 class Timer
 {
-    public static function create(Closure $coroutine, int $interval, bool $repeating = true, array $args = []): void
+    public static function create(callable $coroutine, int $interval, bool $repeating = true, array $args = []): void
     {
 
         $interval *= 0.001;
         $timer =
-            function ($coroutine, $interval, $repeating, $args): void {
+            function (callable $coroutine, float $interval, bool $repeating, array $args): void {
                 $start = microtime(true);
                 $tick = $start + $interval;
 
@@ -37,11 +37,11 @@ class Timer
 
     public static function interval(callable $coroutine, int $interval, array $args = []): void
     {
-        static::create(Closure::fromCallable($coroutine), $interval, true, $args);
+        static::create($coroutine, $interval, true, $args);
     }
 
     public static function after(callable $coroutine, int $interval, array $args = []): void
     {
-        static::create(Closure::fromCallable($coroutine), $interval, false, $args);
+        static::create($coroutine, $interval, false, $args);
     }
 }

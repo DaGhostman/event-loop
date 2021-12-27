@@ -3,6 +3,7 @@
 namespace Onion\Framework\Loop;
 
 use function Onion\Framework\Loop\signal;
+
 use Onion\Framework\Loop\Exceptions\BadStreamOperation;
 use Onion\Framework\Loop\Exceptions\DeadStreamException;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
@@ -13,10 +14,11 @@ use Onion\Framework\Loop\Types\Operation;
 
 class Descriptor implements ResourceInterface
 {
-    private readonly mixed $resource;
+    /** @var resource */
+    private mixed $resource;
     private readonly int $resourceId;
 
-    public function __construct($resource)
+    public function __construct(mixed $resource)
     {
         if (!is_resource($resource)) {
             throw new \InvalidArgumentException(sprintf(
@@ -89,13 +91,9 @@ class Descriptor implements ResourceInterface
         return stream_set_blocking($this->getResource(), false);
     }
 
-    public function wait(Operation $operation = Operation::READ)
+    public function wait(Operation $operation = Operation::READ): mixed
     {
-        if (!$this->isAlive()) {
-            return;
-        }
-
-        return signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($operation) {
+        return signal(function (callable $resume, TaskInterface $task, SchedulerInterface $scheduler) use ($operation) {
             $task->resume();
             switch ($operation) {
                 case Operation::READ:
@@ -113,19 +111,11 @@ class Descriptor implements ResourceInterface
 
     public function lock(int $lockType = LOCK_NB | LOCK_SH): bool
     {
-        if (!stream_supports_lock($this->resource)) {
-            return true;
-        }
-
         return flock($this->resource, $lockType);
     }
 
     public function unlock(): bool
     {
-        if (!stream_supports_lock($this->resource)) {
-            return true;
-        }
-
         return flock($this->resource, LOCK_UN | LOCK_NB);
     }
 }

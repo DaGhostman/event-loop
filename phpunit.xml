@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.5/phpunit.xsd" backupGlobals="true" backupStaticAttributes="false" cacheResult="false" colors="false" convertErrorsToExceptions="true" convertNoticesToExceptions="true" convertWarningsToExceptions="true" forceCoversAnnotation="false" processIsolation="false" stopOnError="true" stopOnFailure="false" stopOnIncomplete="false" stopOnSkipped="false" stopOnRisky="false" timeoutForSmallTests="5" timeoutForMediumTests="15" timeoutForLargeTests="60" verbose="true">
+  <coverage processUncoveredFiles="false">
+    <include>
+      <directory suffix=".php">src</directory>
+    </include>
+    <exclude>
+      <directory suffix=".php">src/Test</directory>
+    </exclude>
+  </coverage>
+  <testsuite name="all">
+    <directory suffix="Test.php">tests</directory>
+  </testsuite>
+</phpunit>

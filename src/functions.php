@@ -2,6 +2,7 @@
 
 namespace Onion\Framework\Loop;
 
+use Fiber;
 use Onion\Framework\Loop\Channels\AbstractChannel;
 use Onion\Framework\Loop\Channels\BufferedChannel;
 use Onion\Framework\Loop\Channels\UnbufferedChannel;
@@ -13,19 +14,18 @@ use Onion\Framework\Loop\Interfaces\{
 use Onion\Framework\Loop\Scheduler;
 
 if (!function_exists(__NAMESPACE__ . '\read')) {
-    function read(ResourceInterface $socket, ?\Closure $coroutine = null): mixed
+    function read(ResourceInterface $socket, ?callable $coroutine = null): mixed
     {
-        return signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($coroutine, $socket) {
-            $scheduler->onRead($socket, Task::create(function (SchedulerInterface $scheduler, TaskInterface $task, callable $coroutine, ResourceInterface $socket) {
-                $task->resume($coroutine($socket));
-                $scheduler->schedule($task);
-            }, [$scheduler, $task, $coroutine, $socket]));
+        return signal(function (callable $resume, TaskInterface $_task, SchedulerInterface $scheduler) use ($coroutine, $socket) {
+            $scheduler->onRead($socket, Task::create(function (callable $resume, callable $coroutine, ResourceInterface $socket) {
+                $resume($coroutine($socket));
+            }, [$resume, $coroutine, $socket]));
         });
     }
 }
 
 if (!function_exists(__NAMESPACE__ . '\write')) {
-    function write(ResourceInterface $socket, \Closure $coroutine): mixed
+    function write(ResourceInterface $socket, ?callable $coroutine = null): mixed
     {
         return signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($coroutine, $socket) {
             $scheduler->onWrite($socket, Task::create(function (SchedulerInterface $scheduler, TaskInterface $task, callable $coroutine, ResourceInterface $socket) {
@@ -37,7 +37,7 @@ if (!function_exists(__NAMESPACE__ . '\write')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\error')) {
-    function error(ResourceInterface $socket, \Closure $coroutine): mixed
+    function error(ResourceInterface $socket, ?callable $coroutine = null): mixed
     {
         return signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($coroutine, $socket): void {
             $scheduler->onError($socket, Task::create(function (SchedulerInterface $scheduler, TaskInterface $task, callable $coroutine, ResourceInterface $socket) {
@@ -49,11 +49,16 @@ if (!function_exists(__NAMESPACE__ . '\error')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\scheduler')) {
-    function scheduler(): SchedulerInterface
+    function scheduler(?SchedulerInterface $instance = null): SchedulerInterface
     {
+        /** @var SchedulerInterface|null $scheduler */
         static $scheduler;
         if (!$scheduler) {
             $scheduler = new Scheduler();
+        }
+
+        if ($instance !== null) {
+            $scheduler = $instance;
         }
 
         return $scheduler;
@@ -61,32 +66,33 @@ if (!function_exists(__NAMESPACE__ . '\scheduler')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\coroutine')) {
-    function coroutine(\Closure $fn, array $args = []): Coroutine
+    function coroutine(callable $fn, array $args = []): TaskInterface
     {
-        $coroutine = new Coroutine(new \Fiber($fn), $args);
-        scheduler()->add($coroutine);
+        $coroutine = Task::create($fn, $args);
+        scheduler()->schedule($coroutine);
 
         return $coroutine;
     }
 }
 
 if (!function_exists(__NAMESPACE__ . '\signal')) {
-    function signal(\Closure $fn)
+    function signal(callable $fn): mixed
     {
-        return \Fiber::suspend(new Signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($fn) {
+        return Fiber::suspend(new Signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($fn) {
             $task->suspend();
-            coroutine($fn, [$task, $scheduler]);
+
+            $fn(function (mixed $value = null) use ($scheduler, $task): void {
+                $task->resume($value);
+                $scheduler->schedule($task);
+            }, $task, $scheduler);
         }));
     }
 }
 
 if (!function_exists(__NAMESPACE__ . '\tick')) {
-    function tick()
+    function tick(): void
     {
-        signal(function ($task, $scheduler) {
-            $task->resume();
-            $scheduler->schedule($task);
-        });
+        signal(fn (callable $resume): mixed => $resume());
     }
 }
 
@@ -133,10 +139,7 @@ if (!function_exists(__NAMESPACE__ . '\is_writeable')) {
 if (!function_exists(__NAMESPACE__ . '\channel')) {
     function channel(int $size = null): AbstractChannel
     {
-        if ($size !== null) {
-            return new BufferedChannel($size);
-        }
-
-        return new UnbufferedChannel();
+        return $size !== null ?
+            new BufferedChannel($size) : new UnbufferedChannel();
     }
 }

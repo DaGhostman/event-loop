@@ -3,30 +3,27 @@
 namespace Onion\Framework\Loop;
 
 use Fiber;
+use Onion\Framework\Loop\Interfaces\CoroutineInterface;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
 
 class Task implements TaskInterface
 {
-    protected $suspended = false;
-    protected $killed = false;
+    protected bool $killed = false;
 
-    public function __construct(private readonly Coroutine  $coroutine)
+    public function __construct(private readonly CoroutineInterface $coroutine)
     {
     }
 
-    public function run()
+    public function run(): mixed
     {
         return $this->coroutine->run();
     }
 
-    public function suspend(mixed $value = null): mixed
+    public function suspend(mixed $value = null): void
     {
-        $this->suspended = true;
         if (!$this->coroutine->isPaused()) {
-            return $this->coroutine->suspend($value);
+            $this->coroutine->suspend($value);
         }
-
-        return null;
     }
 
     public function resume(mixed $value = null): bool
@@ -35,21 +32,18 @@ class Task implements TaskInterface
             return false;
         }
 
-        $this->suspended = false;
         $this->coroutine->send($value);
 
         return true;
     }
 
-    public function throw(\Throwable $ex): bool
+    public function throw(\Throwable $exception): bool
     {
         if ($this->isKilled()) {
             return false;
         }
 
-        $this->suspended = false;
-        $this->coroutine->throw($ex);
-
+        $this->coroutine->throw($exception);
 
         return true;
     }
@@ -71,7 +65,7 @@ class Task implements TaskInterface
 
     public function isPaused(): bool
     {
-        return $this->suspended;
+        return $this->coroutine->isRunning() && $this->coroutine->isPaused();
     }
 
     public static function create(callable $fn, array $args = []): TaskInterface

@@ -6,17 +6,14 @@ use Psr\EventDispatcher\ListenerProviderInterface;
 
 class SimpleProvider implements ListenerProviderInterface
 {
-    private $listeners = [];
-
-    public function __construct($listeners)
+    public function __construct(private readonly array $listeners)
     {
-        $this->listeners = $listeners;
     }
 
     public function getListenersForEvent(object $event): iterable
     {
         $class = get_class($event);
-        $transformed = str_replace('\\', ".", ltrim($class, '\\'));
+        $transformed = strtolower(str_replace('\\', ".", ltrim($class, '\\')));
 
         return $this->listeners[$class] ??
             $this->listeners[$transformed] ??

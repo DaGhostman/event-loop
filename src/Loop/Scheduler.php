@@ -136,10 +136,9 @@ class Scheduler implements SchedulerInterface
             else unset($this->errors[(int) $socket]);
         }
 
-        if ((empty($rSocks) && empty($wSocks)) || @!stream_select($rSocks, $wSocks, $eSocks, $timeout)) {
+        if ((empty($rSocks) && empty($wSocks) && empty($eSocks)) || @!stream_select($rSocks, $wSocks, $eSocks, $timeout)) {
             return;
         }
-
 
         foreach ($rSocks as $socket) {
             $id = (int) $socket;
@@ -193,10 +192,7 @@ class Scheduler implements SchedulerInterface
                     }
                 }
 
-                signal(function ($task, $scheduler) {
-                    $task->resume(true);
-                    $scheduler->schedule($task);
-                });
+                signal(fn (callable $resume): mixed => $resume());
             }
         }));
     }

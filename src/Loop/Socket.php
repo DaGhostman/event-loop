@@ -2,9 +2,7 @@
 
 namespace Onion\Framework\Loop;
 
-use Fiber;
 use Onion\Framework\Loop\Descriptor;
-use Onion\Framework\Loop\Exceptions\DeadStreamException;
 use Onion\Framework\Loop\Interfaces\{
     ResourceInterface,
     SchedulerInterface,
@@ -36,15 +34,12 @@ class Socket extends Descriptor implements SocketInterface
 
     public function accept(?int $timeout = 0): ResourceInterface
     {
-        $waitFn = function (TaskInterface $task, SchedulerInterface $scheduler, ResourceInterface $resource, ?int $timeout) {
+        $waitFn = function (TaskInterface $task, SchedulerInterface $scheduler, ResourceInterface $resource, int $timeout): void {
             try {
                 $resource->wait();
                 $descriptor = new Descriptor(@stream_socket_accept($resource->getResource(), $timeout));
-                try {
-                    $descriptor->unblock();
-                } catch (DeadStreamException $ex) {
-                    // Unable to unblock
-                }
+
+                $descriptor->unblock();
 
                 $task->resume($descriptor);
             } catch (Throwable $ex) {
@@ -54,8 +49,8 @@ class Socket extends Descriptor implements SocketInterface
             }
         };
 
-        return signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($timeout, $waitFn) {
-            $scheduler->add(new Coroutine(new Fiber($waitFn), [$task, $scheduler, $this, $timeout]));
+        return signal(function (callable $resume, TaskInterface $task, SchedulerInterface $scheduler) use ($timeout, $waitFn) {
+            $scheduler->schedule(Task::create($waitFn, [$task, $scheduler, $this, $timeout]));
         });
     }
 }

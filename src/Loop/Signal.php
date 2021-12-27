@@ -16,7 +16,6 @@ class Signal
 
     public function __invoke(TaskInterface $task, SchedulerInterface $scheduler)
     {
-        $callback = $this->callback;
-        return $callback($task, $scheduler);
+        return ($this->callback)($task, $scheduler);
     }
 }

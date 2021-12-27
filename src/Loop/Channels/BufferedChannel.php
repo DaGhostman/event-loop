@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Onion\Framework\Loop\Channels;
 
+use function Onion\Framework\Loop\signal;
 use function Onion\Framework\Loop\tick;
 
 class BufferedChannel extends AbstractChannel
@@ -24,12 +25,22 @@ class BufferedChannel extends AbstractChannel
         }
     }
 
-    public function recv(): mixed
+    public function recv(): ChannelValue
     {
-        while (count($this) === 0 && !$this->isClosed()) {
+        while (!$this->isClosed() && count($this) === 0) {
             tick();
         }
 
-        return parent::recv();
+        return signal(function ($resume) {
+            $count = count($this);
+
+            $resume(
+                new ChannelValue(
+                    count($this) !== 0 ? parent::recv() : null,
+                    !$this->isClosed() ||
+                        $this->isClosed() && $count !== 0
+                ),
+            );
+        });
     }
 }

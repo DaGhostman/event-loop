@@ -5,7 +5,6 @@ namespace Onion\Framework\Loop;
 use \Fiber;
 use Onion\Framework\Loop\Interfaces\{
     CoroutineInterface,
-    SchedulerInterface as Scheduler,
     TaskInterface as Task,
 };
 use Throwable;
@@ -13,6 +12,7 @@ use Throwable;
 class Coroutine implements CoroutineInterface
 {
     private bool $started = false;
+    private bool $suspended = false;
     private mixed $result = null;
     private ?Throwable $exception = null;
 
@@ -22,11 +22,13 @@ class Coroutine implements CoroutineInterface
 
     public function send(mixed $result): void
     {;
+        $this->suspended = false;
         $this->result = $result;
     }
 
     public function throw(Throwable $exception): void
     {
+        $this->suspended = false;
         $this->exception = $exception;
     }
 
@@ -36,9 +38,9 @@ class Coroutine implements CoroutineInterface
             $this->started = true;
             return $this->coroutine->start(...$this->args);
         } elseif ($this->exception) {
-            $result = $this->coroutine->throw($this->exception);
+            $exception = $this->exception;
             $this->exception = null;
-            return $result;
+            return $this->coroutine->throw($exception);
         } else {
             $result = $this->coroutine->resume($this->result);
             $this->result = null;
@@ -46,27 +48,17 @@ class Coroutine implements CoroutineInterface
         }
     }
 
-    public function valid(): bool
-    {
-        return !$this->coroutine->isTerminated();
-    }
-
     public static function task(): Task
     {
-        return signal(function (Task $task, Scheduler $scheduler) {
-            $task->resume($task);
-            $scheduler->schedule($task);
-        });
+        return signal(fn (callable $resume, Task $task): mixed => $resume($task));
     }
 
-    public function suspend(mixed $value): mixed
+    public function suspend(mixed $value): void
     {
-        return $this->coroutine->suspend($value);
-    }
-
-    public function resume(mixed $value): mixed
-    {
-        return $this->coroutine->resume($value);
+        $this->suspended = true;
+        if (!$this->coroutine->isSuspended()) {
+            $this->coroutine->suspend($value);
+        }
     }
 
     public function isRunning(): bool
@@ -81,6 +73,6 @@ class Coroutine implements CoroutineInterface
 
     public function isPaused(): bool
     {
-        return $this->coroutine->isSuspended();
+        return $this->suspended && $this->coroutine->isSuspended();
     }
 }

@@ -4,9 +4,10 @@ namespace Onion\Framework\Event\ListenerProviders;
 
 use Psr\EventDispatcher\ListenerProviderInterface;
 
-class AggregateProvider implements \IteratorAggregate, ListenerProviderInterface
+class AggregateProvider implements ListenerProviderInterface
 {
-    private $providers = [];
+    /** @var ListenerProviderInterface[] */
+    private array $providers = [];
 
     public function addProvider(ListenerProviderInterface ...$provider): void
     {
@@ -15,15 +16,9 @@ class AggregateProvider implements \IteratorAggregate, ListenerProviderInterface
 
     public function getListenersForEvent(object $event): iterable
     {
-        return (function ($event, $providers) {
-            foreach ($providers as $provider) {
-                yield from $provider->getListenersForEvent($event);
-            }
-        })($event, $this->providers);
-    }
 
-    public function getIterator(): \Traversable
-    {
-        return new \ArrayIterator($this->providers);
+        foreach ($this->providers as $provider) {
+            yield from $provider->getListenersForEvent($event);
+        }
     }
 }
