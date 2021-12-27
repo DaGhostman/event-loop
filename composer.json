@@ -16,7 +16,6 @@
   },
   "require": {
     "onion/interfaces": "dev-master",
-    "onion/promise": "dev-master",
     "psr/event-dispatcher": "^1.0"
   },
   "require-dev": {
