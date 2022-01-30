@@ -64,17 +64,18 @@ class Descriptor implements ResourceInterface
 
     public function close(): bool
     {
-        if (
-            $this->isAlive() &&
-            !stream_is_local($this->getResource())
-        ) {
-            stream_socket_shutdown(
-                $this->getResource(),
-                STREAM_SHUT_RDWR,
-            );
+        if ($this->resource && is_resource($this->resource)) {
+            if (!stream_is_local($this->resource)) {
+                stream_socket_shutdown(
+                    $this->getResource(),
+                    STREAM_SHUT_RDWR,
+                );
+            }
+
+            return fclose($this->resource);
         }
 
-        return fclose($this->resource);
+        return true;
     }
 
     public function eof(): bool
