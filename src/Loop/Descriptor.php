@@ -31,36 +31,62 @@ class Descriptor implements ResourceInterface
         $this->resource = $resource;
     }
 
-    public function read(int $size): string
+    public function read(int $size, int $flags = 0): string
     {
         if (!is_readable($this)) {
             throw new BadStreamOperation('read');
         }
 
-        return fread($this->getResource(), $size);
+        return  stream_is_local($this->getResource()) ?
+            fread($this->getResource(), $size) :
+            stream_socket_recvfrom(
+                $this->getResource(),
+                $size,
+                $flags,
+            );
     }
 
-    public function write(string $data): int
+    public function write(string $data, int $flags = 0): int
     {
         if (!is_writeable($this)) {
             throw new BadStreamOperation('write');
         }
-        return fwrite($this->getResource(), $data);
+
+        return stream_is_local($this->getResource()) ?
+            fwrite($this->getResource(), $data) :
+            stream_socket_sendto(
+                $this->getResource(),
+                $data,
+                $flags,
+                stream_socket_get_name($this->getResource(), true),
+            );
     }
 
     public function close(): bool
     {
-        if ($this->isAlive()) {
-            stream_socket_shutdown($this->getResource(), STREAM_SHUT_RDWR);
+        if (
+            $this->isAlive() &&
+            !stream_is_local($this->getResource())
+        ) {
+            stream_socket_shutdown(
+                $this->getResource(),
+                STREAM_SHUT_RDWR,
+            );
         }
 
         return fclose($this->resource);
     }
 
+    public function eof(): bool
+    {
+        return !$this->getResource() ||
+            !is_resource($this->getResource()) ||
+            feof($this->getResource());
+    }
+
     public function isAlive(): bool
     {
-        return $this->getResource() &&
-            is_resource($this->getResource());
+        return !$this->eof();
     }
 
     public function getResourceId(): int
@@ -93,7 +119,11 @@ class Descriptor implements ResourceInterface
 
     public function wait(Operation $operation = Operation::READ): mixed
     {
-        return signal(function (callable $resume, TaskInterface $task, SchedulerInterface $scheduler) use ($operation) {
+        return signal(function (
+            callable $resume,
+            TaskInterface $task,
+            SchedulerInterface $scheduler
+        ) use ($operation) {
             $task->resume();
             switch ($operation) {
                 case Operation::READ:
