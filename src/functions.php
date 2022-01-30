@@ -14,43 +14,89 @@ use Onion\Framework\Loop\Interfaces\{
 use Onion\Framework\Loop\Scheduler;
 
 if (!function_exists(__NAMESPACE__ . '\read')) {
-    function read(ResourceInterface $socket, ?callable $coroutine = null): mixed
-    {
-        return signal(function (callable $resume, TaskInterface $_task, SchedulerInterface $scheduler) use ($coroutine, $socket) {
-            $scheduler->onRead($socket, Task::create(function (callable $resume, callable $coroutine, ResourceInterface $socket) {
-                $resume($coroutine($socket));
-            }, [$resume, $coroutine, $socket]));
+    function read(
+        ResourceInterface $socket,
+        ?callable $coroutine = null,
+    ): mixed {
+        return signal(function (
+            callable $resume,
+            TaskInterface $task,
+            SchedulerInterface $scheduler
+        ) use ($coroutine, $socket) {
+            $scheduler->onRead(
+                $socket,
+                Task::create(
+                    function (
+                        callable $resume,
+                        callable $coroutine,
+                        ResourceInterface $socket
+                    ) {
+                        $resume($coroutine($socket));
+                    },
+                    [$resume, $coroutine, $socket]
+                )
+            );
         });
     }
 }
 
 if (!function_exists(__NAMESPACE__ . '\write')) {
-    function write(ResourceInterface $socket, ?callable $coroutine = null): mixed
-    {
-        return signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($coroutine, $socket) {
-            $scheduler->onWrite($socket, Task::create(function (SchedulerInterface $scheduler, TaskInterface $task, callable $coroutine, ResourceInterface $socket) {
-                $task->resume($coroutine($socket));
-                $scheduler->schedule($task);
-            }, [$scheduler, $task, $coroutine, $socket]));
+    function write(
+        ResourceInterface $socket,
+        ?callable $coroutine = null,
+    ): mixed {
+        return signal(function (
+            TaskInterface $task,
+            SchedulerInterface $scheduler,
+        ) use ($coroutine, $socket) {
+            $scheduler->onWrite(
+                $socket,
+                Task::create(
+                    function (
+                        SchedulerInterface $scheduler,
+                        TaskInterface $task,
+                        callable $coroutine,
+                        ResourceInterface $socket
+                    ) {
+                        $task->resume($coroutine($socket));
+                        $scheduler->schedule($task);
+                    },
+                    [$scheduler, $task, $coroutine, $socket]
+                )
+            );
         });
     }
 }
 
 if (!function_exists(__NAMESPACE__ . '\error')) {
-    function error(ResourceInterface $socket, ?callable $coroutine = null): mixed
-    {
-        return signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($coroutine, $socket): void {
-            $scheduler->onError($socket, Task::create(function (SchedulerInterface $scheduler, TaskInterface $task, callable $coroutine, ResourceInterface $socket) {
-                $task->resume($coroutine($socket));
-                $scheduler->schedule($task);
-            }, [$scheduler, $task, $coroutine, $socket]));
+    function error(
+        ResourceInterface $socket,
+        ?callable $coroutine = null,
+    ): mixed {
+        return signal(function (
+            TaskInterface $task,
+            SchedulerInterface $scheduler
+        ) use ($coroutine, $socket): void {
+            $scheduler->onError(
+                $socket,
+                Task::create(function (
+                    SchedulerInterface $scheduler,
+                    TaskInterface $task,
+                    callable $coroutine,
+                    ResourceInterface $socket
+                ) {
+                    $task->resume($coroutine($socket));
+                    $scheduler->schedule($task);
+                }, [$scheduler, $task, $coroutine, $socket])
+            );
         });
     }
 }
 
 if (!function_exists(__NAMESPACE__ . '\scheduler')) {
-    function scheduler(?SchedulerInterface $instance = null): SchedulerInterface
-    {
+    function scheduler(
+        ?SchedulerInterface $instance = null,
+    ): SchedulerInterface {
         /** @var SchedulerInterface|null $scheduler */
         static $scheduler;
         if (!$scheduler) {
@@ -78,7 +124,10 @@ if (!function_exists(__NAMESPACE__ . '\coroutine')) {
 if (!function_exists(__NAMESPACE__ . '\signal')) {
     function signal(callable $fn): mixed
     {
-        return Fiber::suspend(new Signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($fn) {
+        return Fiber::suspend(new Signal(function (
+            TaskInterface $task,
+            SchedulerInterface $scheduler,
+        ) use ($fn) {
             $task->suspend();
 
             $fn(function (mixed $value = null) use ($scheduler, $task): void {
@@ -100,10 +149,11 @@ if (!function_exists(__NAMESPACE__ . '\is_readable')) {
     function is_readable(ResourceInterface $resource): bool
     {
         $modes = [
-            'r' => true, 'w+' => true, 'r+' => true, 'x+' => true, 'c+' => true,
-            'rb' => true, 'w+b' => true, 'r+b' => true, 'x+b' => true,
-            'c+b' => true, 'rt' => true, 'w+t' => true, 'r+t' => true,
-            'x+t' => true, 'c+t' => true, 'a+' => true,
+            'r' => true, 'w+' => true, 'r+' => true, 'x+' => true,
+            'c+' => true, 'rb' => true, 'w+b' => true, 'r+b' => true,
+            'x+b' => true, 'c+b' => true, 'rt' => true, 'w+t' => true,
+            'r+t' => true, 'x+t' => true, 'c+t' => true, 'a+' => true,
+            'a+b' => true,
         ];
 
         if (!$resource->isAlive()) {
@@ -120,10 +170,11 @@ if (!function_exists(__NAMESPACE__ . '\is_writeable')) {
     function is_writeable(ResourceInterface $resource): bool
     {
         $modes = [
-            'w' => true, 'w+' => true, 'rw' => true, 'r+' => true, 'x+' => true,
-            'c+' => true, 'wb' => true, 'w+b' => true, 'r+b' => true,
-            'x+b' => true, 'c+b' => true, 'w+t' => true, 'r+t' => true,
-            'x+t' => true, 'c+t' => true, 'a' => true, 'a+' => true,
+            'w' => true, 'w+' => true, 'rw' => true, 'r+' => true,
+            'x+' => true, 'c+' => true, 'wb' => true, 'w+b' => true,
+            'r+b' => true, 'x+b' => true, 'c+b' => true, 'w+t' => true,
+            'r+t' => true, 'x+t' => true, 'c+t' => true, 'a' => true,
+            'a+' => true, 'a+b' => true,
         ];
 
         if (!$resource->isAlive()) {
