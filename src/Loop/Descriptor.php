@@ -31,35 +31,22 @@ class Descriptor implements ResourceInterface
         $this->resource = $resource;
     }
 
-    public function read(int $size, int $flags = 0): string
+    public function read(int $size): string
     {
         if (!is_readable($this)) {
             throw new BadStreamOperation('read');
         }
 
-        return  stream_is_local($this->getResource()) ?
-            fread($this->getResource(), $size) :
-            stream_socket_recvfrom(
-                $this->getResource(),
-                $size,
-                $flags,
-            );
+        return fread($this->getResource(), $size);
     }
 
-    public function write(string $data, int $flags = 0): int
+    public function write(string $data): int
     {
         if (!is_writeable($this)) {
             throw new BadStreamOperation('write');
         }
 
-        return stream_is_local($this->getResource()) ?
-            fwrite($this->getResource(), $data) :
-            stream_socket_sendto(
-                $this->getResource(),
-                $data,
-                $flags,
-                stream_socket_get_name($this->getResource(), true),
-            );
+        return fwrite($this->getResource(), $data);
     }
 
     public function close(): bool
