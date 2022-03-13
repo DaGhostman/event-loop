@@ -82,7 +82,7 @@ class Descriptor implements ResourceInterface
         return $this->resourceId;
     }
 
-    public function getResource()
+    public function getResource(): mixed
     {
         return $this->resource;
     }
@@ -135,5 +135,14 @@ class Descriptor implements ResourceInterface
     public function unlock(): bool
     {
         return flock($this->resource, LOCK_UN | LOCK_NB);
+    }
+
+    public function detach(): mixed
+    {
+        $resource = $this->resource;
+
+        $this->resource = null;
+
+        return $resource;
     }
 }
