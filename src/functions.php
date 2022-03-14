@@ -12,6 +12,7 @@ use Onion\Framework\Loop\Interfaces\{
     TaskInterface
 };
 use Onion\Framework\Loop\Scheduler;
+use Onion\Framework\Loop\Types\Operation;
 
 if (!function_exists(__NAMESPACE__ . '\read')) {
     function read(
@@ -194,3 +195,30 @@ if (!function_exists(__NAMESPACE__ . '\channel')) {
             new BufferedChannel($size) : new UnbufferedChannel();
     }
 }
+
+if (!function_exists(__NAMESPACE__ . '\is_pending')) {
+    function is_pending(ResourceInterface $connection, Operation $operation = Operation::READ): bool
+    {
+        if ($connection->eof()) {
+            return false;
+        }
+
+        $read = $write = $error = null;
+
+        switch ($operation) {
+            case Operation::READ:
+                $read = [$connection->getResource()];
+                break;
+            case Operation::WRITE:
+                $write = [$connection->getResource()];
+                break;
+            case Operation::ERROR:
+                $error = [$connection->getResource()];
+                break;
+        }
+
+        $result = stream_select($read, $write, $error, 0, 0);
+
+        return $result !== false && $result > 0;
+    }
+};
