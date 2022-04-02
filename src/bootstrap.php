@@ -177,3 +177,4 @@ class AsyncFileStreamWrapper
 }
 
 AsyncFileStreamWrapper::register();
+register_shutdown_function(fn () => scheduler()->start());
