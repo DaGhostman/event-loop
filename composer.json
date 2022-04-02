@@ -6,7 +6,8 @@
       "Onion\\Framework\\": "src/"
     },
     "files": [
-      "src/functions.php"
+      "src/functions.php",
+      "src/bootstrap.php"
     ]
   },
   "autoload-dev": {
