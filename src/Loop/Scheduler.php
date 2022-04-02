@@ -17,7 +17,6 @@ class Scheduler implements SchedulerInterface
     // resourceID => [socket, tasks]
     protected array $reads = [];
     protected array $writes = [];
-    protected array $errors = [];
 
     public function __construct()
     {
@@ -102,17 +101,6 @@ class Scheduler implements SchedulerInterface
         }
     }
 
-    public function onError(ResourceInterface $resource, TaskInterface $task): void
-    {
-        $socket = $resource->getResourceId();
-
-        if (isset($this->errors[$socket])) {
-            $this->errors[$socket][1][] = $task;
-        } else {
-            $this->errors[$socket] = [$resource->getResource(), [$task]];
-        }
-    }
-
     /**
      * @return void
      */
@@ -131,10 +119,6 @@ class Scheduler implements SchedulerInterface
         }
 
         $eSocks = [];
-        foreach ($this->errors as [$socket]) {
-            if (is_resource($socket)) $eSocks[] = $socket;
-            else unset($this->errors[(int) $socket]);
-        }
 
         if ((empty($rSocks) && empty($wSocks) && empty($eSocks)) || @!stream_select($rSocks, $wSocks, $eSocks, $timeout)) {
             return;
@@ -159,17 +143,6 @@ class Scheduler implements SchedulerInterface
                 $this->schedule($task);
             }
         }
-
-        foreach ($eSocks as $socket) {
-            $id = (int) $socket;
-            [, $tasks] = $this->errors[$id];
-            unset($this->errors[$id]);
-
-
-            foreach ($tasks as $task) {
-                $this->schedule($task);
-            }
-        }
     }
 
     protected function ioPollTask(): CoroutineInterface
@@ -178,8 +151,7 @@ class Scheduler implements SchedulerInterface
             while ($this->started) {
                 if (
                     !empty($this->reads) ||
-                    !empty($this->writes) ||
-                    !empty($this->errors)
+                    !empty($this->writes)
                 ) {
                     if ($this->queue->isEmpty()) {
                         $this->ioPoll(null);

@@ -72,31 +72,6 @@ if (!function_exists(__NAMESPACE__ . '\write')) {
     }
 }
 
-if (!function_exists(__NAMESPACE__ . '\error')) {
-    function error(
-        ResourceInterface $socket,
-        ?callable $coroutine = null,
-    ): mixed {
-        return signal(function (
-            TaskInterface $task,
-            SchedulerInterface $scheduler
-        ) use ($coroutine, $socket): void {
-            $scheduler->onError(
-                $socket,
-                Task::create(function (
-                    SchedulerInterface $scheduler,
-                    TaskInterface $task,
-                    callable $coroutine,
-                    ResourceInterface $socket
-                ) {
-                    $task->resume($coroutine($socket));
-                    $scheduler->schedule($task);
-                }, [$scheduler, $task, $coroutine, $socket])
-            );
-        });
-    }
-}
-
 if (!function_exists(__NAMESPACE__ . '\scheduler')) {
     function scheduler(
         ?SchedulerInterface $instance = null,
@@ -223,11 +198,9 @@ if (!function_exists(__NAMESPACE__ . '\is_pending')) {
             case Operation::WRITE:
                 $write = [$connection->getResource()];
                 break;
-            case Operation::ERROR:
-                $error = [$connection->getResource()];
-                break;
         }
 
+        $error = [];
         $result = stream_select($read, $write, $error, 0, 0);
 
         return $result !== false && $result > 0;

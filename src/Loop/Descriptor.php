@@ -1,10 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Onion\Framework\Loop;
 
 use function Onion\Framework\Loop\signal;
 
-use Onion\Framework\Loop\Exceptions\BadStreamOperation;
 use Onion\Framework\Loop\Exceptions\DeadStreamException;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Loop\Interfaces\SchedulerInterface;
@@ -31,19 +32,19 @@ class Descriptor implements ResourceInterface
         $this->resource = $resource;
     }
 
-    public function read(int $size): string
+    public function read(int $size): string | false
     {
         if (!is_readable($this)) {
-            throw new BadStreamOperation('read');
+            return false;
         }
 
         return fread($this->getResource(), $size);
     }
 
-    public function write(string $data): int
+    public function write(string $data): int | false
     {
         if (!is_writeable($this)) {
-            throw new BadStreamOperation('write');
+            return false;
         }
 
         return fwrite($this->getResource(), $data);
@@ -119,9 +120,6 @@ class Descriptor implements ResourceInterface
                     break;
                 case Operation::WRITE:
                     $scheduler->onWrite($this, $task);
-                    break;
-                case Operation::ERROR:
-                    $scheduler->onError($this, $task);
                     break;
             }
         });
