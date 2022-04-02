@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Onion\Framework\Loop;
 
+use Closure;
 use Fiber;
 use Onion\Framework\Loop\Channels\AbstractChannel;
 use Onion\Framework\Loop\Channels\BufferedChannel;
@@ -232,3 +233,11 @@ if (!function_exists(__NAMESPACE__ . '\is_pending')) {
         return $result !== false && $result > 0;
     }
 };
+
+
+if (!function_exists(__NAMESPACE__ . '\sleep')) {
+    function sleep(float $number)
+    {
+        signal(fn (Closure $resume) => Timer::after(fn () => $resume(), (int) $number * 1000));
+    }
+}
