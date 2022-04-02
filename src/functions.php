@@ -125,6 +125,14 @@ if (!function_exists(__NAMESPACE__ . '\coroutine')) {
 if (!function_exists(__NAMESPACE__ . '\signal')) {
     function signal(callable $fn): mixed
     {
+        if (!Fiber::getCurrent() || !class_exists(Signal::class)) {
+            $result = null;
+            $fn(function ($value) use (&$result) {
+                $result = $value;
+            });
+
+            return $result;
+        }
         return Fiber::suspend(new Signal(function (
             TaskInterface $task,
             SchedulerInterface $scheduler,
