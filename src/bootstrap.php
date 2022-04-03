@@ -35,12 +35,14 @@ class AsyncFileStreamWrapper
 
     public function dir_closedir(): bool
     {
-        return $this->wrap(closedir(...));
+        $this->wrap(closedir(...), $this->directory);
+
+        return $this->directory === false;
     }
 
-    public function dir_opendir(string $path, int $options = 0): bool
+    public function dir_opendir(string $path, int $options = null): bool
     {
-        return !!($this->directory = $this->wrap(opendir(...), $path, $options));
+        return ($this->directory = $this->wrap(opendir(...), $path, null)) !== false;
     }
 
     public function dir_readdir(): string|false
@@ -50,7 +52,9 @@ class AsyncFileStreamWrapper
 
     public function dir_rewinddir(): bool
     {
-        return $this->wrap(rewinddir(...), $this->directory);
+        $this->wrap(rewinddir(...), $this->directory);
+
+        return true;
     }
 
     public function mkdir(string $path, $mode, int $options = 0): bool
@@ -91,7 +95,7 @@ class AsyncFileStreamWrapper
 
     public function stream_cast(int $as): mixed
     {
-        return $this->resource && ($as & STREAM_CAST_AS_STREAM) ?
+        return $this->resource  ?
             $this->resource : false;
     }
 
@@ -138,9 +142,9 @@ class AsyncFileStreamWrapper
         return $this->wrap(fseek(...), $this->resource, $offset, $whence);
     }
 
-    public function stream_set_option()
+    public function stream_set_option(): bool
     {
-        return false;
+        return true;
     }
 
     public function stream_stat(): array | false
