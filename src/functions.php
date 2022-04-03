@@ -150,7 +150,7 @@ if (!function_exists(__NAMESPACE__ . '\is_readable')) {
             'a+b' => true,
         ];
 
-        if (!$resource->isAlive()) {
+        if ($resource->eof()) {
             return false;
         }
 
@@ -171,7 +171,7 @@ if (!function_exists(__NAMESPACE__ . '\is_writeable')) {
             'a+' => true, 'a+b' => true,
         ];
 
-        if (!$resource->isAlive()) {
+        if ($resource->eof()) {
             return false;
         }
 
