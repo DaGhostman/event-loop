@@ -11,13 +11,17 @@ use SplQueue;
 
 class Scheduler implements SchedulerInterface
 {
-    private array $queue;
+    private readonly SplQueue $queue;
     private bool $started = false;
 
     // resourceID => [socket, tasks]
     protected array $reads = [];
     protected array $writes = [];
 
+    public function __construct()
+    {
+        $this->queue = new SplQueue();
+    }
     public function add(CoroutineInterface $coroutine): TaskInterface
     {
         $task = new Task($coroutine);
@@ -28,7 +32,7 @@ class Scheduler implements SchedulerInterface
 
     public function schedule(TaskInterface $task): void
     {
-        $this->queue[] = $task;
+        $this->queue->enqueue($task);
     }
 
     public function start(): void
@@ -40,7 +44,7 @@ class Scheduler implements SchedulerInterface
         $this->add($this->ioPollTask());
         while (!empty($this->queue)) {
             /** @var TaskInterface $task */
-            $task = array_shift($this->queue);
+            $task = $this->queue->dequeue();
             if ($task->isKilled()) {
                 continue;
             }
@@ -54,8 +58,7 @@ class Scheduler implements SchedulerInterface
                 $result = $task->run();
 
                 if ($result instanceof Signal) {
-                    array_unshift($this->queue, Task::create($result, [$task, $this]));
-                    // $result($task, $this);
+                    $this->queue->enqueue(Task::create($result, [$task, $this]));
                     continue;
                 }
             } catch (\Throwable $e) {
