@@ -41,6 +41,9 @@ class Scheduler implements SchedulerInterface
 
     public function start(): void
     {
+        if ($this->started)
+            return;
+
         $this->started = true;
         $this->add($this->ioPollTask());
         while (!$this->queue->isEmpty()) {
