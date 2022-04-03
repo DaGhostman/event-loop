@@ -21,6 +21,9 @@ class Scheduler implements SchedulerInterface
     public function __construct()
     {
         $this->queue = new SplQueue();
+        $this->queue->setIteratorMode(
+            SplQueue::IT_MODE_FIFO | SplQueue::IT_MODE_DELETE
+        );
     }
     public function add(CoroutineInterface $coroutine): TaskInterface
     {
@@ -42,7 +45,7 @@ class Scheduler implements SchedulerInterface
 
         $this->started = true;
         $this->add($this->ioPollTask());
-        while (!empty($this->queue)) {
+        while (!$this->queue->isEmpty()) {
             /** @var TaskInterface $task */
             $task = $this->queue->dequeue();
             if ($task->isKilled()) {
@@ -148,7 +151,7 @@ class Scheduler implements SchedulerInterface
     {
         return new Coroutine(new Fiber(function () {
             while ($this->started) {
-                $emptyQueue = empty($this->queue);
+                $emptyQueue = $this->queue->isEmpty();
                 if (
                     !empty($this->reads) ||
                     !empty($this->writes)
