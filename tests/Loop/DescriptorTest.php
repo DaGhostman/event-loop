@@ -39,14 +39,6 @@ class DescriptorTest extends TestCase
         $this->assertSame('example-data', $resource->read(1024));
     }
 
-    public function testErrorFromFile()
-    {
-        file_put_contents($this->name, 'example-data');
-        $resource = new Descriptor($this->resource);
-        $resource->wait(Operation::ERROR);
-        $this->assertSame('example-data', $resource->read(1024));
-    }
-
     public function testWritingToFile()
     {
         $resource = new Descriptor($this->resource);
@@ -85,11 +77,9 @@ class DescriptorTest extends TestCase
 
     public function testReadOnWriteableStream()
     {
-        $this->expectException(BadStreamOperation::class);
-        $this->expectExceptionMessage('read');
         $resource = new Descriptor(fopen(tempnam(sys_get_temp_dir(), uniqid()), 'w'));
 
-        $resource->read(1024);
+        $this->assertFalse($resource->read(1024));
 
         fclose($resource->getResource());
     }
@@ -123,40 +113,11 @@ class DescriptorTest extends TestCase
 
     public function testWriteOnReadableStream()
     {
-        $this->expectException(BadStreamOperation::class);
-        $this->expectExceptionMessage('write');
         $resource = new Descriptor(fopen(tempnam(sys_get_temp_dir(), uniqid()), 'r'));
 
-        $resource->write('test');
+        $this->assertFalse($resource->write('test'));
 
         fclose($resource->getResource());
-    }
-
-    public function testFileErrorTaskHandling()
-    {
-        $this->expectOutputString('12');
-
-        $resource = new Descriptor($this->resource);
-        scheduler()->onError($resource, Task::create(function () {
-            echo '1';
-        }));
-        scheduler()->onError($resource, Task::create(function () {
-            echo '2';
-        }));
-    }
-
-    public function testErrorOnClosedResource()
-    {
-        $this->expectOutputString('');
-        $resource = new Descriptor($this->resource);
-        $resource->close();
-
-        scheduler()->onError($resource, Task::create(function () {
-            echo '1';
-        }));
-        scheduler()->onError($resource, Task::create(function () {
-            echo '2';
-        }));
     }
 
     public function testBlock()
@@ -169,12 +130,9 @@ class DescriptorTest extends TestCase
 
     public function testBlockOnClosed()
     {
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('block');
-
         $resource = new Descriptor(stream_socket_server('127.0.0.1:1234'));
         $resource->close();
-        $resource->block();
+        $this->assertFalse($resource->block());
     }
 
     public function testUnblock()
@@ -187,11 +145,9 @@ class DescriptorTest extends TestCase
 
     public function testUnblockOnClosed()
     {
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('unblock');
         $resource = new Descriptor(stream_socket_server('127.0.0.1:1234'));
         $resource->close();
-        $resource->unblock();
+        $this->assertFalse($resource->unblock());
     }
 
     public function testLocking()
