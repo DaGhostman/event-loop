@@ -11,20 +11,12 @@ use SplQueue;
 
 class Scheduler implements SchedulerInterface
 {
-    private readonly \SplQueue $queue;
+    private array $queue;
     private bool $started = false;
 
     // resourceID => [socket, tasks]
     protected array $reads = [];
     protected array $writes = [];
-
-    public function __construct()
-    {
-        $this->queue = new SplQueue();
-        $this->queue->setIteratorMode(
-            SplQueue::IT_MODE_FIFO | SplQueue::IT_MODE_DELETE
-        );
-    }
 
     public function add(CoroutineInterface $coroutine): TaskInterface
     {
@@ -36,7 +28,7 @@ class Scheduler implements SchedulerInterface
 
     public function schedule(TaskInterface $task): void
     {
-        $this->queue->enqueue($task);
+        $this->queue[] = $task;
     }
 
     public function start(): void
@@ -46,9 +38,9 @@ class Scheduler implements SchedulerInterface
 
         $this->started = true;
         $this->add($this->ioPollTask());
-        while (!$this->queue->isEmpty()) {
+        while (!empty($this->queue)) {
             /** @var TaskInterface $task */
-            $task = $this->queue->dequeue();
+            $task = array_shift($this->queue);
             if ($task->isKilled()) {
                 continue;
             }
@@ -62,7 +54,8 @@ class Scheduler implements SchedulerInterface
                 $result = $task->run();
 
                 if ($result instanceof Signal) {
-                    $result($task, $this);
+                    array_unshift($this->queue, Task::create($result, [$task, $this]));
+                    // $result($task, $this);
                     continue;
                 }
             } catch (\Throwable $e) {
@@ -152,17 +145,18 @@ class Scheduler implements SchedulerInterface
     {
         return new Coroutine(new Fiber(function () {
             while ($this->started) {
+                $emptyQueue = empty($this->queue);
                 if (
                     !empty($this->reads) ||
                     !empty($this->writes)
                 ) {
-                    if ($this->queue->isEmpty()) {
+                    if ($emptyQueue) {
                         $this->ioPoll(null);
                     } else {
                         $this->ioPoll(0);
                     }
                 } else {
-                    if ($this->queue->isEmpty()) {
+                    if ($emptyQueue) {
                         return;
                     }
                 }

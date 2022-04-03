@@ -117,10 +117,17 @@ if (!function_exists(__NAMESPACE__ . '\signal')) {
         ) use ($fn) {
             $task->suspend();
 
-            $fn(function (mixed $value = null) use ($scheduler, $task): void {
-                $task->resume($value);
+
+            try {
+                $fn(function (mixed $value = null) use ($scheduler, $task): void {
+
+                    $task->resume($value);
+                    $scheduler->schedule($task);
+                }, $task, $scheduler);
+            } catch (\Throwable $ex) {
+                $task->throw($ex);
                 $scheduler->schedule($task);
-            }, $task, $scheduler);
+            }
         }));
     }
 }
