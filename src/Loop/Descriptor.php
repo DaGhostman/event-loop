@@ -91,7 +91,7 @@ class Descriptor implements ResourceInterface
     public function block(): bool
     {
         if (!$this->isAlive()) {
-            throw new \LogicException('block');
+            return false;
         }
 
         return stream_set_blocking($this->getResource(), true);
@@ -100,7 +100,7 @@ class Descriptor implements ResourceInterface
     public function unblock(): bool
     {
         if (!$this->isAlive()) {
-            throw new DeadStreamException('unblock');
+            return false;
         }
 
         return stream_set_blocking($this->getResource(), false);
