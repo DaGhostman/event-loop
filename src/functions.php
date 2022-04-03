@@ -105,7 +105,7 @@ if (!function_exists(__NAMESPACE__ . '\signal')) {
     {
         if (!Fiber::getCurrent() || !class_exists(Signal::class)) {
             $result = null;
-            $fn(function ($value) use (&$result) {
+            $fn(function (mixed $value = null) use (&$result) {
                 $result = $value;
             });
 
