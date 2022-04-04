@@ -132,6 +132,19 @@ if (!function_exists(__NAMESPACE__ . '\signal')) {
     }
 }
 
+if (!function_exists(__NAMESPACE__ . '\with')) {
+    function with(Closure $expr, ...$args): mixed
+    {
+        return signal(function (Closure $resume) use (&$expr, &$args): void {
+            while (!($result = $expr($args))) {
+                tick();
+            }
+
+            $resume($result);
+        });
+    }
+}
+
 if (!function_exists(__NAMESPACE__ . '\tick')) {
     function tick(): void
     {
