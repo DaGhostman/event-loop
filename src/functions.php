@@ -229,7 +229,7 @@ if (!function_exists(__NAMESPACE__ . '\is_pending')) {
 
 
 if (!function_exists(__NAMESPACE__ . '\sleep')) {
-    function sleep(float $number)
+    function sleep(float $number): void
     {
         signal(fn (Closure $resume) => Timer::after(fn () => $resume(), (int) $number * 1000));
     }
