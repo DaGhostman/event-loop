@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use function Onion\Framework\Loop\scheduler;
 use function Onion\Framework\Loop\signal;
 
@@ -27,7 +29,7 @@ class FileStreamWrapper
         stream_wrapper_restore('file');
     }
 
-    private function wrap(callable $callback, mixed ...$args)
+    private function wrap(Closure $callback, mixed ...$args)
     {
         self::unregister();
         $result = @$callback(...$args);
@@ -124,6 +126,10 @@ class FileStreamWrapper
 
     public function stream_lock(int $operation): bool
     {
+        if ($operation === 0) {
+            return true;
+        }
+
         return $this->wrap(flock(...), $this->resource, $operation);
     }
 
@@ -146,7 +152,7 @@ class FileStreamWrapper
 
     public function stream_seek(int $offset, int $whence = SEEK_SET): bool
     {
-        return $this->wrap(fseek(...), $this->resource, $offset, $whence);
+        return $this->wrap(fseek(...), $this->resource, $offset, $whence) === 0;
     }
 
     public function stream_set_option(int $option, ?int $arg1 = null, ?int $arg2 = null): bool
@@ -154,8 +160,9 @@ class FileStreamWrapper
         return match ($option) {
             STREAM_OPTION_BLOCKING => $this->wrap(stream_set_blocking(...), $this->resource, $arg1),
             STREAM_OPTION_READ_TIMEOUT => $this->wrap(stream_set_timeout(...), $this->resource, $arg1, $arg2),
-            STREAM_OPTION_WRITE_BUFFER => $this->wrap(stream_set_write_buffer(...), $this->resource, $arg2),
-            STREAM_OPTION_READ_BUFFER => $this->wrap(stream_set_write_buffer(...), $this->resource, $arg2),
+            STREAM_OPTION_WRITE_BUFFER => $this->wrap(stream_set_write_buffer(...), $this->resource, $arg2) === 0,
+            STREAM_OPTION_READ_BUFFER => $this->wrap(stream_set_read_buffer(...), $this->resource, $arg2) === 0,
+            default => false,
         };
     }
 
@@ -300,6 +307,10 @@ class AsyncStreamWrapper
 
     public function stream_lock(int $operation): bool
     {
+        if ($operation === 0) {
+            return true;
+        }
+
         return $this->async(flock(...), $this->resource, $operation);
     }
 
@@ -322,7 +333,7 @@ class AsyncStreamWrapper
 
     public function stream_seek(int $offset, int $whence = SEEK_SET): bool
     {
-        return $this->async(fseek(...), $this->resource, $offset, $whence);
+        return $this->async(fseek(...), $this->resource, $offset, $whence) === 0;
     }
 
     public function stream_set_option(int $option, ?int $arg1 = null, ?int $arg2 = null): bool
@@ -330,8 +341,8 @@ class AsyncStreamWrapper
         return match ($option) {
             STREAM_OPTION_BLOCKING => $this->async(stream_set_blocking(...), $this->resource, $arg1),
             STREAM_OPTION_READ_TIMEOUT => $this->async(stream_set_timeout(...), $this->resource, $arg1, $arg2),
-            STREAM_OPTION_WRITE_BUFFER => $this->async(stream_set_write_buffer(...), $this->resource, $arg2),
-            STREAM_OPTION_READ_BUFFER => $this->async(stream_set_write_buffer(...), $this->resource, $arg2),
+            STREAM_OPTION_WRITE_BUFFER => $this->async(stream_set_write_buffer(...), $this->resource, $arg2) === 0,
+            STREAM_OPTION_READ_BUFFER => $this->async(stream_set_read_buffer(...), $this->resource, $arg2) === 0,
         };
     }
 
