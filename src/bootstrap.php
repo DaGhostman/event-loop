@@ -64,7 +64,7 @@ class FileStreamWrapper
 
     public function mkdir(string $path, $mode, int $options = 0): bool
     {
-        return $this->wrap(mkdir(...), $path, $mode, ($options & STREAM_MKDIR_RECURSIVE));
+        return $this->wrap(mkdir(...), $path, $mode, ($options & STREAM_MKDIR_RECURSIVE) === $options);
     }
 
     public function rename(string $from, string $to): bool
@@ -248,7 +248,7 @@ class AsyncStreamWrapper
 
     public function mkdir(string $path, $mode, int $options = 0): bool
     {
-        return $this->async(mkdir(...), $path, $mode, ($options & STREAM_MKDIR_RECURSIVE));
+        return $this->async(mkdir(...), $path, $mode, ($options & STREAM_MKDIR_RECURSIVE) === $options);
     }
 
     public function rename(string $from, string $to): bool
