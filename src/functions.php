@@ -6,9 +6,11 @@ namespace Onion\Framework\Loop;
 
 use Closure;
 use Fiber;
-use Onion\Framework\Loop\Channels\AbstractChannel;
-use Onion\Framework\Loop\Channels\BufferedChannel;
-use Onion\Framework\Loop\Channels\UnbufferedChannel;
+use Onion\Framework\Loop\Channels\{
+    AbstractChannel,
+    BufferedChannel,
+    UnbufferedChannel
+};
 use Onion\Framework\Loop\Interfaces\{
     ResourceInterface,
     SchedulerInterface,
@@ -50,6 +52,7 @@ if (!function_exists(__NAMESPACE__ . '\write')) {
         ?callable $coroutine = null,
     ): mixed {
         return signal(function (
+            Closure $resume,
             TaskInterface $task,
             SchedulerInterface $scheduler,
         ) use ($coroutine, $socket) {
@@ -57,15 +60,13 @@ if (!function_exists(__NAMESPACE__ . '\write')) {
                 $socket,
                 Task::create(
                     function (
-                        SchedulerInterface $scheduler,
-                        TaskInterface $task,
+                        Closure $resume,
                         callable $coroutine,
                         ResourceInterface $socket
                     ) {
-                        $task->resume($coroutine($socket));
-                        $scheduler->schedule($task);
+                        $resume($coroutine($socket));
                     },
-                    [$scheduler, $task, $coroutine, $socket]
+                    [$resume, $coroutine, $socket]
                 )
             );
         });
@@ -226,7 +227,6 @@ if (!function_exists(__NAMESPACE__ . '\is_pending')) {
         return $result !== false && $result > 0;
     }
 };
-
 
 if (!function_exists(__NAMESPACE__ . '\sleep')) {
     function sleep(float $number): void
