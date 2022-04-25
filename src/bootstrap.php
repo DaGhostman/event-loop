@@ -18,6 +18,8 @@ class FileStreamWrapper
     private $resource;
     private $directory;
 
+    private bool $reportErrors = false;
+
     public static function register()
     {
         stream_wrapper_unregister('file');
@@ -89,15 +91,19 @@ class FileStreamWrapper
 
         $this->resource = $this->wrap(fopen(...), $path, $mode);
 
+        $this->reportErrors = ($options & STREAM_REPORT_ERRORS) === STREAM_REPORT_ERRORS;
         if (!$this->resource) {
-            trigger_error("Unable to open stream {$path}", E_USER_ERROR);
+            if ($this->reportErrors) {
+                trigger_error("Unable to open stream {$path}", E_USER_ERROR);
+            }
+
+            return false;
         }
 
         if (($options & STREAM_USE_PATH) === STREAM_USE_PATH) {
             $opened_path = $path;
         }
 
-        $this->reportErrors = ($options & STREAM_REPORT_ERRORS) === STREAM_REPORT_ERRORS;
 
         return $this->resource !== false;
     }
@@ -270,15 +276,18 @@ class AsyncStreamWrapper
         $path = substr($path, 8);
         $this->resource = $this->async(fopen(...), $path, $mode);
 
+        $this->reportErrors = ($options & STREAM_REPORT_ERRORS) === STREAM_REPORT_ERRORS;
         if (!$this->resource) {
-            trigger_error("Unable to open stream {$path}", E_USER_ERROR);
-        }
+            if ($this->reportErrors) {
+                trigger_error("Unable to open stream {$path}", E_USER_ERROR);
+            }
+
+            return false;
+
 
         if (($options & STREAM_USE_PATH) === STREAM_USE_PATH) {
             $opened_path = $path;
         }
-
-        $this->reportErrors = ($options & STREAM_REPORT_ERRORS) === STREAM_REPORT_ERRORS;
 
         return $this->resource !== false;
     }
