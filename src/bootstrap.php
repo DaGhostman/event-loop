@@ -283,6 +283,7 @@ class AsyncStreamWrapper
             }
 
             return false;
+        }
 
 
         if (($options & STREAM_USE_PATH) === STREAM_USE_PATH) {
