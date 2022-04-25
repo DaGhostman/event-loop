@@ -225,7 +225,7 @@ class AsyncStreamWrapper
 
     private function async(callable $fn, mixed ...$args): mixed
     {
-        return signal(fn ($resume) => $resume($fn(...$args)));
+        return signal(fn ($resume) => $resume(@$fn(...$args)));
     }
 
     public function dir_closedir(): bool
