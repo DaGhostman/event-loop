@@ -64,7 +64,7 @@ class FileStreamWrapper
 
     public function mkdir(string $path, $mode, int $options = 0): bool
     {
-        return $this->wrap(mkdir(...), $path, $mode, ($options & STREAM_MKDIR_RECURSIVE) === $options);
+        return $this->wrap(mkdir(...), $path, $mode, ($options & STREAM_MKDIR_RECURSIVE) === STREAM_MKDIR_RECURSIVE);
     }
 
     public function rename(string $from, string $to): bool
@@ -93,11 +93,11 @@ class FileStreamWrapper
             trigger_error("Unable to open stream {$path}", E_USER_ERROR);
         }
 
-        if (($options & STREAM_USE_PATH) === $options) {
+        if (($options & STREAM_USE_PATH) === STREAM_USE_PATH) {
             $opened_path = $path;
         }
 
-        $this->reportErrors = ($options & STREAM_REPORT_ERRORS) === $options;
+        $this->reportErrors = ($options & STREAM_REPORT_ERRORS) === STREAM_REPORT_ERRORS;
 
         return $this->resource !== false;
     }
@@ -193,7 +193,7 @@ class FileStreamWrapper
 
     public function url_stat(string $path, int $flags): array|false
     {
-        return (($flags & STREAM_URL_STAT_LINK) === $flags) ?
+        return (($flags & STREAM_URL_STAT_LINK) === STREAM_URL_STAT_LINK) ?
             $this->wrap(lstat(...), $path) :
             $this->wrap(stat(...), $path);
     }
@@ -248,7 +248,7 @@ class AsyncStreamWrapper
 
     public function mkdir(string $path, $mode, int $options = 0): bool
     {
-        return $this->async(mkdir(...), $path, $mode, ($options & STREAM_MKDIR_RECURSIVE) === $options);
+        return $this->async(mkdir(...), $path, $mode, ($options & STREAM_MKDIR_RECURSIVE) === STREAM_MKDIR_RECURSIVE);
     }
 
     public function rename(string $from, string $to): bool
@@ -274,11 +274,11 @@ class AsyncStreamWrapper
             trigger_error("Unable to open stream {$path}", E_USER_ERROR);
         }
 
-        if (($options & STREAM_USE_PATH) === $options) {
+        if (($options & STREAM_USE_PATH) === STREAM_USE_PATH) {
             $opened_path = $path;
         }
 
-        $this->reportErrors = ($options & STREAM_REPORT_ERRORS) === $options;
+        $this->reportErrors = ($options & STREAM_REPORT_ERRORS) === STREAM_REPORT_ERRORS;
 
         return $this->resource !== false;
     }
@@ -373,7 +373,7 @@ class AsyncStreamWrapper
 
     public function url_stat(string $path, int $flags): array|false
     {
-        return (($flags & STREAM_URL_STAT_LINK) === $flags) ?
+        return (($flags & STREAM_URL_STAT_LINK) === STREAM_URL_STAT_LINK) ?
             $this->async(lstat(...), $path) :
             $this->async(stat(...), $path);
     }
