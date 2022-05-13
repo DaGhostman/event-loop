@@ -106,9 +106,9 @@ class Descriptor implements ResourceInterface
         return stream_set_blocking($this->getResource(), false);
     }
 
-    public function wait(Operation $operation = Operation::READ): mixed
+    public function wait(Operation $operation = Operation::READ): void
     {
-        return signal(function (
+        signal(function (
             callable $resume,
             TaskInterface $task,
             SchedulerInterface $scheduler
