@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace Onion\Framework\Loop;
 
-use Fiber;
 use Onion\Framework\Loop\Interfaces\{CoroutineInterface, ResourceInterface, SchedulerInterface, TaskInterface};
-use Onion\Framework\Loop\{Coroutine, Task};
+use Onion\Framework\Loop\Task;
 use SplQueue;
 
 class Scheduler implements SchedulerInterface
 {
-    private readonly SplQueue $queue;
+    private SplQueue $queue;
     private array $timers = [];
     private bool $started = false;
 
@@ -21,10 +20,7 @@ class Scheduler implements SchedulerInterface
 
     public function __construct()
     {
-        $this->queue = new SplQueue();
-        $this->queue->setIteratorMode(
-            SplQueue::IT_MODE_FIFO | SplQueue::IT_MODE_DELETE
-        );
+        $this->queue = $this->createQueue();
     }
     public function add(CoroutineInterface $coroutine): TaskInterface
     {
@@ -36,7 +32,7 @@ class Scheduler implements SchedulerInterface
 
     public function schedule(TaskInterface $task, int $at = null): void
     {
-        if ($at === 0) {
+        if ($at === null) {
             $this->queue->enqueue($task);
         } else {
             if (!isset($this->timers[$at])) {
@@ -54,7 +50,11 @@ class Scheduler implements SchedulerInterface
             return;
 
         $this->started = true;
-        $this->add($this->poll());
+
+        while ($this->started) {
+            $this->poll();
+        }
+
         while (!$this->queue->isEmpty()) {
             /** @var TaskInterface $task */
             $task = $this->queue->dequeue();
@@ -110,6 +110,51 @@ class Scheduler implements SchedulerInterface
             $this->writes[$socket][1][] = $task;
         } else {
             $this->writes[$socket] = [$resource->getResource(), [$task]];
+        }
+    }
+
+    private function createQueue(): SplQueue
+    {
+        $queue = new SplQueue();
+        $queue->setIteratorMode(SplQueue::IT_MODE_FIFO | SplQueue::IT_MODE_DELETE);
+
+        return $queue;
+    }
+
+    protected function tasksPoll(): void
+    {
+        $frame = $this->queue;
+        $this->queue = $this->createQueue();
+
+        while (!$frame->isEmpty()) {
+            /** @var TaskInterface $task */
+            $task = $frame->dequeue();
+
+            if ($task->isKilled() || $task->isFinished()) {
+                continue;
+            }
+
+            if ($task->isPaused()) {
+                $this->schedule($task);
+                continue;
+            }
+
+            try {
+                $result = $task->run();
+
+                if ($result instanceof Signal) {
+                    $this->queue->enqueue(Task::create($result, [$task, $this]));
+                    continue;
+                }
+            } catch (\Throwable $ex) {
+                if ($task->isFinished()) {
+                    throw $ex;
+                }
+
+                $task->throw($ex);
+            }
+
+            $this->schedule($task);
         }
     }
 
@@ -169,31 +214,27 @@ class Scheduler implements SchedulerInterface
 
         return $hasPendingTimers;
     }
-    protected function poll(): CoroutineInterface
+    protected function poll(): void
     {
-        return new Coroutine(new Fiber(function () {
-            while ($this->started) {
-                $tick = (int) (hrtime(true) * 1e+6);
-                $isEmpty = $this->queue->isEmpty();
-                $timeout = $isEmpty ? null : 0;
-                if (!empty($this->timers) && $isEmpty) {
-                    $diff = array_key_first($this->timers) - $tick;
-                    $timeout = (int) ($diff <= 0 ? 0 : $diff);
-                }
+        $tick = (int) (hrtime(true) / 1e+3);
+        $isEmpty = $this->queue->isEmpty();
+        $timeout = $isEmpty ? null : 0;
+        if (!empty($this->timers) && $isEmpty) {
+            $diff = array_key_first($this->timers) - $tick;
+            $timeout = (int) ($diff <= 0 ? 0 : $diff);
+        }
 
-                $this->timerPoll($tick);
-                $this->ioPoll($timeout);
-                if (
-                    !$this->reads &&
-                    !$this->writes &&
-                    $this->queue->isEmpty() &&
-                    !$this->timers
-                ) {
-                    return;
-                }
+        $this->timerPoll($tick);
+        $this->tasksPoll();
+        $this->ioPoll($timeout);
 
-                signal(fn (callable $resume): mixed => $resume());
-            }
-        }));
+        if (
+            !$this->reads &&
+            !$this->writes &&
+            $this->queue->isEmpty() &&
+            !$this->timers
+        ) {
+            $this->started = false;
+        }
     }
 }
