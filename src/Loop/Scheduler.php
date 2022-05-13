@@ -12,6 +12,7 @@ use SplQueue;
 class Scheduler implements SchedulerInterface
 {
     private readonly SplQueue $queue;
+    private array $timers = [];
     private bool $started = false;
 
     // resourceID => [socket, tasks]
@@ -33,9 +34,18 @@ class Scheduler implements SchedulerInterface
         return $task;
     }
 
-    public function schedule(TaskInterface $task): void
+    public function schedule(TaskInterface $task, int $at = null): void
     {
-        $this->queue->enqueue($task);
+        if ($at === 0) {
+            $this->queue->enqueue($task);
+        } else {
+            if (!isset($this->timers[$at])) {
+                $this->timers[$at] = [];
+                ksort($this->timers);
+            }
+
+            $this->timers[$at][] = $task;
+        }
     }
 
     public function start(): void
@@ -44,7 +54,7 @@ class Scheduler implements SchedulerInterface
             return;
 
         $this->started = true;
-        $this->add($this->ioPollTask());
+        $this->add($this->poll());
         while (!$this->queue->isEmpty()) {
             /** @var TaskInterface $task */
             $task = $this->queue->dequeue();
@@ -120,9 +130,7 @@ class Scheduler implements SchedulerInterface
             else unset($this->writes[(int) $socket]);
         }
 
-        $eSocks = [];
-
-        if ((empty($rSocks) && empty($wSocks) && empty($eSocks)) || @!stream_select($rSocks, $wSocks, $eSocks, $timeout)) {
+        if ((empty($rSocks) && empty($wSocks)) || @!stream_select($rSocks, $wSocks, $eSocks, $timeout !== null ? 0 : null, $timeout)) {
             return;
         }
 
@@ -147,24 +155,41 @@ class Scheduler implements SchedulerInterface
         }
     }
 
-    protected function ioPollTask(): CoroutineInterface
+    protected function timerPoll(int $now)
+    {
+        $hasPendingTimers = false;
+        foreach ($this->timers as $ts => $tasks) {
+            if ($ts <= $now) {
+                foreach ($tasks as $task) {
+                    $this->schedule($task);
+                }
+                unset($this->timers[$ts]);
+            }
+        }
+
+        return $hasPendingTimers;
+    }
+    protected function poll(): CoroutineInterface
     {
         return new Coroutine(new Fiber(function () {
             while ($this->started) {
-                $emptyQueue = $this->queue->isEmpty();
+                $tick = (int) (hrtime(true) * 1e+6);
+                $isEmpty = $this->queue->isEmpty();
+                $timeout = $isEmpty ? null : 0;
+                if (!empty($this->timers) && $isEmpty) {
+                    $diff = array_key_first($this->timers) - $tick;
+                    $timeout = (int) ($diff <= 0 ? 0 : $diff);
+                }
+
+                $this->timerPoll($tick);
+                $this->ioPoll($timeout);
                 if (
-                    !empty($this->reads) ||
-                    !empty($this->writes)
+                    !$this->reads &&
+                    !$this->writes &&
+                    $this->queue->isEmpty() &&
+                    !$this->timers
                 ) {
-                    if ($emptyQueue) {
-                        $this->ioPoll(null);
-                    } else {
-                        $this->ioPoll(0);
-                    }
-                } else {
-                    if ($emptyQueue) {
-                        return;
-                    }
+                    return;
                 }
 
                 signal(fn (callable $resume): mixed => $resume());

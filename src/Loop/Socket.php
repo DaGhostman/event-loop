@@ -34,7 +34,12 @@ class Socket extends Descriptor implements SocketInterface
 
     public function accept(?int $timeout = 0): ResourceInterface
     {
-        $waitFn = function (TaskInterface $task, SchedulerInterface $scheduler, ResourceInterface $resource, int $timeout): void {
+        $waitFn = function (
+            TaskInterface $task,
+            SchedulerInterface $scheduler,
+            ResourceInterface $resource,
+            ?int $timeout
+        ): void {
             try {
                 $resource->wait();
                 $descriptor = new Descriptor(@stream_socket_accept($resource->getResource(), $timeout));

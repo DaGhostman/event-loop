@@ -3,45 +3,44 @@
 namespace Onion\Framework\Loop;
 
 use Closure;
+use Onion\Framework\Loop\Interfaces\TaskInterface;
+use Onion\Framework\Loop\Interfaces\TimerInterface;
+use WeakReference;
 
-class Timer
+class Timer implements TimerInterface
 {
-    public static function create(callable $coroutine, int $interval, bool $repeating = true, array $args = []): void
+    private readonly WeakReference $task;
+    private function __construct(TaskInterface $task)
     {
-
-        $interval *= 0.001;
-        $timer =
-            function (callable $coroutine, float $interval, bool $repeating, array $args): void {
-                $start = microtime(true);
-                $tick = $start + $interval;
-
-                while (true) {
-                    if ($tick >= microtime(true)) {
-                        tick();
-                        continue;
-                    }
-                    $coroutine(...$args);
-
-                    if (!$repeating) {
-                        break;
-                    }
-
-                    $tick = microtime(true) + $interval;
-
-                    usleep(500);
-                }
-            };
-
-        coroutine($timer, [$coroutine, $interval, $repeating, $args]);
+        $this->task = WeakReference::create($task);
     }
 
-    public static function interval(callable $coroutine, int $interval, array $args = []): void
+    public function stop(): void
     {
-        static::create($coroutine, $interval, true, $args);
+        $this->task->get()?->kill();
     }
 
-    public static function after(callable $coroutine, int $interval, array $args = []): void
+    private static function create(Closure $coroutine, int $interval, bool $repeating = true): TimerInterface
     {
-        static::create($coroutine, $interval, false, $args);
+        $task = Task::create(static function (Closure $coroutine, int $interval, bool $repeating) {
+            coroutine($coroutine);
+            if ($repeating) {
+                scheduler()->schedule(Coroutine::task(), (int) (hrtime(true) * 1e+6) + $interval);
+            }
+        }, [$coroutine, $interval, $repeating]);
+
+        scheduler()->schedule($task, (int) (hrtime(true) * 1e+6) + $interval);
+
+        return new static($task);
+    }
+
+    public static function interval(Closure $coroutine, int $interval): TimerInterface
+    {
+        return static::create($coroutine, $interval, true);
+    }
+
+    public static function after(Closure $coroutine, int $interval): TimerInterface
+    {
+        return static::create($coroutine, $interval, false);
     }
 }
