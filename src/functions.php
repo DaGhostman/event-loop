@@ -79,7 +79,7 @@ if (!function_exists(__NAMESPACE__ . '\scheduler')) {
     ): SchedulerInterface {
         /** @var SchedulerInterface|null $scheduler */
         static $scheduler;
-        if (!$scheduler) {
+        if (!$scheduler && class_exists(Scheduler::class, true)) {
             $scheduler = new Scheduler();
         }
 
