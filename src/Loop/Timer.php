@@ -22,14 +22,15 @@ class Timer implements TimerInterface
 
     private static function create(Closure $coroutine, int $interval, bool $repeating = true): TimerInterface
     {
+        $interval *= 1000;
         $task = Task::create(static function (Closure $coroutine, int $interval, bool $repeating) {
             coroutine($coroutine);
             if ($repeating) {
-                scheduler()->schedule(Coroutine::task(), (int) (hrtime(true) * 1e+6) + $interval);
+                scheduler()->schedule(Coroutine::task(), (int) floor(hrtime(true) / 1e+3) + $interval);
             }
         }, [$coroutine, $interval, $repeating]);
 
-        scheduler()->schedule($task, (int) (hrtime(true) * 1e+6) + $interval);
+        scheduler()->schedule($task, ((int) floor(hrtime(true) / 1e+3)) + $interval);
 
         return new static($task);
     }
