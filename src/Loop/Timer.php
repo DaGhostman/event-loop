@@ -20,28 +20,29 @@ class Timer implements TimerInterface
         $this->task->get()?->kill();
     }
 
-    private static function create(Closure $coroutine, int $interval, bool $repeating = true): TimerInterface
+    private static function create(Closure $coroutine, int $ms, bool $repeating = true): TimerInterface
     {
-        $interval *= 1000;
-        $task = Task::create(static function (Closure $coroutine, int $interval, bool $repeating) {
+        // Convert milliseconds to microseconds
+        $ms *= 1000;
+        $task = Task::create(static function (Closure $coroutine, int $ms, bool $repeating) {
             coroutine($coroutine);
             if ($repeating) {
-                scheduler()->schedule(Coroutine::task(), (int) floor(hrtime(true) / 1e+3) + $interval);
+                scheduler()->schedule(Coroutine::task(), (int) floor(hrtime(true) / 1e+3) + $ms);
             }
-        }, [$coroutine, $interval, $repeating]);
+        }, [$coroutine, $ms, $repeating]);
 
-        scheduler()->schedule($task, ((int) floor(hrtime(true) / 1e+3)) + $interval);
+        scheduler()->schedule($task, ((int) floor(hrtime(true) / 1e+3)) + $ms);
 
         return new static($task);
     }
 
-    public static function interval(Closure $coroutine, int $interval): TimerInterface
+    public static function interval(Closure $coroutine, int $ms): TimerInterface
     {
-        return static::create($coroutine, $interval, true);
+        return static::create($coroutine, $ms, true);
     }
 
-    public static function after(Closure $coroutine, int $interval): TimerInterface
+    public static function after(Closure $coroutine, int $ms): TimerInterface
     {
-        return static::create($coroutine, $interval, false);
+        return static::create($coroutine, $ms, false);
     }
 }
