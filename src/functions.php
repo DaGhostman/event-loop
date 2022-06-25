@@ -9,6 +9,7 @@ use Fiber;
 use Onion\Framework\Loop\Channels\{
     AbstractChannel,
     BufferedChannel,
+    Channel,
     UnbufferedChannel
 };
 use Onion\Framework\Loop\Interfaces\{
@@ -16,6 +17,7 @@ use Onion\Framework\Loop\Interfaces\{
     SchedulerInterface,
     TaskInterface
 };
+use Onion\Framework\Loop\Interfaces\Channels\ChannelInterface;
 use Onion\Framework\Loop\Scheduler;
 use Onion\Framework\Loop\Types\Operation;
 
@@ -196,10 +198,9 @@ if (!function_exists(__NAMESPACE__ . '\is_writeable')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\channel')) {
-    function channel(int $size = null): AbstractChannel
+    function channel(): ChannelInterface
     {
-        return $size !== null ?
-            new BufferedChannel($size) : new UnbufferedChannel();
+        return new Channel();
     }
 }
 

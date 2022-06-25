@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Onion\Framework\Loop\Channels;
 
-use ArrayAccess;
 use BadMethodCallException;
 use InvalidArgumentException;
+use Onion\Framework\Loop\Interfaces\Channels\ChannelValueInterface;
 
-class ChannelValue implements ArrayAccess
+class ChannelValue implements ChannelValueInterface
 {
     public function __construct(
         private readonly mixed $value,
