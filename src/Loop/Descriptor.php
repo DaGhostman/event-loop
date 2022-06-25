@@ -28,7 +28,7 @@ class Descriptor implements ResourceInterface
             ));
         }
 
-        $this->resourceId = (int) $resource;
+        $this->resourceId = get_resource_id($resource);
         $this->resource = $resource;
     }
 

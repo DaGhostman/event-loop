@@ -166,21 +166,24 @@ class Scheduler implements SchedulerInterface
         $rSocks = [];
         foreach ($this->reads as [$socket]) {
             if (is_resource($socket)) $rSocks[] = $socket;
-            else unset($this->reads[(int) $socket]);
+            else unset($this->reads[get_resource_id($socket)]);
         }
 
         $wSocks = [];
         foreach ($this->writes as [$socket]) {
             if (is_resource($socket)) $wSocks[] = $socket;
-            else unset($this->writes[(int) $socket]);
+            else unset($this->writes[get_resource_id($socket)]);
         }
 
-        if ((empty($rSocks) && empty($wSocks)) || @!stream_select($rSocks, $wSocks, $eSocks, $timeout !== null ? 0 : null, $timeout)) {
+        if (
+            (empty($rSocks) && empty($wSocks)) ||
+            @!stream_select($rSocks, $wSocks, $eSocks, $timeout !== null ? 0 : null, $timeout)
+        ) {
             return;
         }
 
         foreach ($rSocks as $socket) {
-            $id = (int) $socket;
+            $id = get_resource_id($socket);
             [, $tasks] = $this->reads[$id];
             unset($this->reads[$id]);
 
@@ -190,7 +193,7 @@ class Scheduler implements SchedulerInterface
         }
 
         foreach ($wSocks as $socket) {
-            $id = (int) $socket;
+            $id = get_resource_id($socket);
             [, $tasks] = $this->writes[$id];
             unset($this->writes[$id]);
 
