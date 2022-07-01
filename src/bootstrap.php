@@ -147,11 +147,11 @@ if (!class_exists(FileStreamWrapper::class)) {
         public function stream_metadata(string $path, int $option, mixed $value): bool
         {
             return match ($option) {
-                STREAM_META_TOUCH => empty($value) ? touch($path, $value[0] ?? null, $value[1] ?? null) : touch($path),
-                STREAM_META_OWNER => chown($path, $value),
-                STREAM_META_OWNER_NAME => chown($path, $value),
-                STREAM_META_GROUP => chgrp($path, $value),
-                STREAM_META_ACCESS => chmod($path, $value),
+                STREAM_META_TOUCH => empty($value) ? $this->wrap(touch(...), $path, $value[0] ?? null, $value[1] ?? null) : $this->wrap(touch(...), $path),
+                STREAM_META_OWNER => $this->wrap(chown(...), $path, $value),
+                STREAM_META_OWNER_NAME => $this->wrap(chown(...), $path, $value),
+                STREAM_META_GROUP => $this->wrap(chgrp(...), $path, $value),
+                STREAM_META_ACCESS => $this->wrap(chmod(...), $path, $value),
                 default => false,
             };
         }
@@ -336,11 +336,11 @@ if (!class_exists(AsyncStreamWrapper::class)) {
         public function stream_metadata(string $path, int $option, mixed $value): bool
         {
             return match ($option) {
-                STREAM_META_TOUCH => empty($value) ? touch($path, $value[0], $value[1]) : touch($path),
-                STREAM_META_OWNER => chown($path, $value),
-                STREAM_META_OWNER_NAME => chown($path, $value),
-                STREAM_META_GROUP => chgrp($path, $value),
-                STREAM_META_ACCESS => chmod($path, $value),
+                STREAM_META_TOUCH => empty($value) ? $this->async(touch(...), $path, $value[0] ?? null, $value[1] ?? null) : $this->async(touch(...), $path),
+                STREAM_META_OWNER => $this->async(chown(...), $path, $value),
+                STREAM_META_OWNER_NAME => $this->async(chown(...), $path, $value),
+                STREAM_META_GROUP => $this->async(chgrp(...), $path, $value),
+                STREAM_META_ACCESS => $this->async(chmod(...), $path, $value),
                 default => false,
             };
         }
