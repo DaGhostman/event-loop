@@ -22,6 +22,7 @@ class Scheduler implements SchedulerInterface
     {
         $this->queue = $this->createQueue();
     }
+
     public function add(CoroutineInterface $coroutine): TaskInterface
     {
         $task = new Task($coroutine);
@@ -53,41 +54,6 @@ class Scheduler implements SchedulerInterface
 
         while ($this->started) {
             $this->poll();
-        }
-
-        while (!$this->queue->isEmpty()) {
-            /** @var TaskInterface $task */
-            $task = $this->queue->dequeue();
-            if ($task->isKilled()) {
-                continue;
-            }
-
-            if ($task->isPaused()) {
-                $this->schedule($task);
-                continue;
-            }
-
-            try {
-                $result = $task->run();
-
-                if ($result instanceof Signal) {
-                    $this->queue->enqueue(Task::create($result, [$task, $this]));
-                    continue;
-                }
-            } catch (\Throwable $e) {
-                if ($task->isFinished()) {
-                    throw $e;
-                }
-
-                $task->throw($e);
-                $this->schedule($task);
-            }
-
-            if ($task->isFinished()) {
-                $task->kill();
-            } else {
-                $this->schedule($task);
-            }
         }
     }
 
@@ -217,6 +183,7 @@ class Scheduler implements SchedulerInterface
 
         return $hasPendingTimers;
     }
+
     protected function poll(): void
     {
         $tick = (int) (hrtime(true) / 1e+3);
