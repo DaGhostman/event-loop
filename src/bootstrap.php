@@ -147,7 +147,7 @@ if (!class_exists(FileStreamWrapper::class)) {
         public function stream_metadata(string $path, int $option, mixed $value): bool
         {
             return match ($option) {
-                STREAM_META_TOUCH => empty($value) ? touch($path, $value[0], $value[1]) : touch($path),
+                STREAM_META_TOUCH => empty($value) ? touch($path, $value[0] ?? null, $value[1] ?? null) : touch($path),
                 STREAM_META_OWNER => chown($path, $value),
                 STREAM_META_OWNER_NAME => chown($path, $value),
                 STREAM_META_GROUP => chgrp($path, $value),
