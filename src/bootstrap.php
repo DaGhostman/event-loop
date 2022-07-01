@@ -81,7 +81,7 @@ if (!class_exists(FileStreamWrapper::class)) {
 
         public function rmdir(string $path): bool
         {
-            return $this->wrap(rename(...), $path);
+            return $this->wrap(rmdir(...), $path);
         }
 
         public function stream_open(
