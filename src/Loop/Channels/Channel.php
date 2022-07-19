@@ -11,6 +11,7 @@ use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use RuntimeException;
 use SplQueue;
 use Onion\Framework\Loop\Descriptor;
+use Onion\Framework\Loop\Interfaces\Channels\ChannelValueInterface;
 
 use function Onion\Framework\Loop\read;
 use function Onion\Framework\Loop\signal;
@@ -49,7 +50,7 @@ class Channel implements ChannelInterface
         $this->writableStream->close();
     }
 
-    public function recv(): ChannelValue
+    public function recv(): ChannelValueInterface
     {
         return signal(function (Closure $resume) {
             read($this->readableStream, function (ResourceInterface $resource) use ($resume) {
@@ -64,13 +65,15 @@ class Channel implements ChannelInterface
         });
     }
 
-    public function send(mixed $value): bool
+    public function send(mixed ...$data): bool
     {
         if ($this->open) {
-            write($this->writableStream, function (ResourceInterface $resource) use (&$value) {
-                $resource->write('.');
+            write($this->writableStream, function (ResourceInterface $resource) use (&$data) {
+                foreach ($data as $value) {
+                    $this->queue->enqueue($value);
+                }
 
-                $this->queue->enqueue($value);
+                $resource->write('.');
             });
 
             return true;
