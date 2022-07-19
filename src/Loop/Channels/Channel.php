@@ -41,6 +41,7 @@ class Channel implements ChannelInterface
 
         $this->readableStream = new Descriptor($streams[0]);
         $this->writableStream = new Descriptor($streams[1]);
+        $this->queue = new SplQueue();
     }
 
     public function close(): void
