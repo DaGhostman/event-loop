@@ -6,12 +6,7 @@ namespace Onion\Framework\Loop;
 
 use Closure;
 use Fiber;
-use Onion\Framework\Loop\Channels\{
-    AbstractChannel,
-    BufferedChannel,
-    Channel,
-    UnbufferedChannel
-};
+use Onion\Framework\Loop\Channels\Channel;
 use Onion\Framework\Loop\Interfaces\{
     ResourceInterface,
     SchedulerInterface,
@@ -233,5 +228,21 @@ if (!function_exists(__NAMESPACE__ . '\sleep')) {
     function sleep(float $number): void
     {
         signal(fn (Closure $resume) => Timer::after(fn () => $resume(), (int) $number * 1000));
+    }
+}
+
+
+if (!function_exists(__NAMESPACE__ . '\watch')) {
+    function watch(
+        ResourceInterface $resource,
+        Closure $fn,
+        Operation $operation = Operation::READ,
+    ): TaskInterface {
+        return coroutine(function (Closure $fn, ResourceInterface $resource) use ($operation) {
+            while (is_pending($resource, $operation)) {
+                $resource->wait($operation);
+                coroutine($fn, [$resource]);
+            };
+        }, [$fn, $resource]);
     }
 }
