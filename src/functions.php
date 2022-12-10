@@ -6,71 +6,109 @@ namespace Onion\Framework\Loop;
 
 use Closure;
 use Fiber;
+use FiberError;
 use Onion\Framework\Loop\Channels\Channel;
 use Onion\Framework\Loop\Interfaces\{
     ResourceInterface,
     SchedulerInterface,
-    TaskInterface
+    TaskInterface,
+    TimerInterface
 };
 use Onion\Framework\Loop\Interfaces\Channels\ChannelInterface;
 use Onion\Framework\Loop\Scheduler;
 use Onion\Framework\Loop\Types\Operation;
+use Throwable;
 
 if (!function_exists(__NAMESPACE__ . '\read')) {
+    /**
+     * Trigger `$fn` whenever `$resource` is readable (i.e has pending
+     * data). The signature of `$fn` is `fn (ResourceInterface $resource
+     * ) => mixed` that will be returned to the calling function on
+     * completion. (in blocking mode - default) or null in non-blocking
+     *
+     * Note that the function should take care checking if the resource is EOF(closed)
+     *
+     * @param ResourceInterface $socket Resource to wait upon
+     * @param ?Closure $fn The function to trigger when data is available
+     * @param bool $blocking Should the calling coroutine block until completion
+     * or return immediately.
+     *
+     * @return mixed The result of `$fn` in blocking mode (default) or null in non-blocking
+     *
+     * @throws FiberError
+     * @throws Throwable
+     */
     function read(
         ResourceInterface $socket,
-        ?callable $coroutine = null,
+        ?Closure $fn = null,
+        bool $blocking = true,
     ): mixed {
-        return signal(function (
-            callable $resume,
-            TaskInterface $task,
-            SchedulerInterface $scheduler
-        ) use ($coroutine, $socket) {
-            $scheduler->onRead(
-                $socket,
-                Task::create(
-                    function (
-                        callable $resume,
-                        callable $coroutine,
-                        ResourceInterface $socket
-                    ) {
-                        $resume($coroutine($socket));
-                    },
-                    [$resume, $coroutine, $socket]
+        return $blocking ?
+            signal(
+                fn (
+                    Closure $resume,
+                    TaskInterface $task,
+                    SchedulerInterface $scheduler,
+                ) => $scheduler->onRead(
+                    $socket,
+                    Task::create(fn () => $resume(($fn ?? fn () => null)($socket)))
                 )
-            );
-        });
+            ) : scheduler()->onRead($socket, Task::create($fn, [$socket]));
     }
 }
 
 if (!function_exists(__NAMESPACE__ . '\write')) {
+    /**
+     * Trigger `$fn` whenever `$resource` is writable (i.e is ready to
+     * accept data). The signature of `$fn` is `fn (ResourceInterface $resource
+     * ) => mixed`
+     *
+     * Note that the function should take care checking if the resource is EOF(closed)
+     * and if the data has been completely written
+     *
+     * @param ResourceInterface $socket Resource to wait upon
+     * @param ?Closure $fn The function to trigger when data is available
+     * @param bool $blocking Should the calling coroutine block until completion
+     * or return immediately.
+     *
+     * @return mixed The result of `$fn` in blocking mode (default) or null in non-blocking
+     *
+     * @throws FiberError
+     * @throws Throwable
+     */
     function write(
         ResourceInterface $socket,
-        ?callable $coroutine = null,
+        ?Closure $fn = null,
+        bool $blocking = true,
     ): mixed {
-        return signal(function (
-            Closure $resume,
-            TaskInterface $task,
-            SchedulerInterface $scheduler,
-        ) use ($coroutine, $socket) {
-            $scheduler->onWrite(
-                $socket,
-                Task::create(
-                    function (
-                        Closure $resume,
-                        callable $coroutine,
-                        ResourceInterface $socket
-                    ) {
-                        $resume($coroutine($socket));
-                    },
-                    [$resume, $coroutine, $socket]
+        return $blocking ?
+            signal(
+                fn (
+                    Closure $resume,
+                    TaskInterface $task,
+                    SchedulerInterface $scheduler,
+                ) => $scheduler->onWrite(
+                    $socket,
+                    Task::create(fn () => $resume(($fn ?? fn () => null)($socket)))
                 )
-            );
-        });
+            ) : scheduler()->onWrite($socket, Task::create($fn, [$socket]));
     }
 }
 
 if (!function_exists(__NAMESPACE__ . '\scheduler')) {
+    /**
+     * Retrieve the current instance of the scheduler or set a new one
+     * instance.
+     *
+     * A new `Onion\Framework\Loop\Scheduler` instance will be created
+     * if none has been explicitly set.
+     *
+     * @param null|SchedulerInterface $instance No argument is needed
+     * when fetching the currently active one
+     *
+     * @return SchedulerInterface
+     *
+     */
     function scheduler(
         ?SchedulerInterface $instance = null,
     ): SchedulerInterface {
@@ -89,7 +127,17 @@ if (!function_exists(__NAMESPACE__ . '\scheduler')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\coroutine')) {
-    function coroutine(callable $fn, array $args = []): TaskInterface
+    /**
+     * Register a new coroutine to execute on the next tick of the loop.
+     *
+     * @param Closure $fn The function to execute
+     * @param array $args A list of arguments to pass to the function
+     * when executing
+     *
+     * @return TaskInterface A reference to the task, with which it can
+     * be externally manipulated
+     */
+    function coroutine(Closure $fn, array $args = []): TaskInterface
     {
         $coroutine = Task::create($fn, $args);
         scheduler()->schedule($coroutine);
@@ -99,13 +147,31 @@ if (!function_exists(__NAMESPACE__ . '\coroutine')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\signal')) {
-    function signal(callable $fn): mixed
+    /**
+     * A special instruction to send to the scheduler, that should
+     * allow alteration of the behavior, i.e suspend a task until another
+     * completes, continue only when certain conditions are met, etc.
+     *
+     * @param Closure $fn The logic of the signal
+     *
+     * @return mixed The value provided to `$resume` or through
+     * `TaskInterface::resume`
+     *
+     * @throws FiberError
+     * @throws Throwable
+     */
+    function signal(Closure $fn): mixed
     {
         if (!Fiber::getCurrent() || !class_exists(Signal::class)) {
+            trigger_error(
+                'Currently running outside of scheduler, $task & $scheduler will have no effect. Did you forget to wrap inside `coroutine()`?',
+                E_USER_NOTICE,
+            );
+
             $result = null;
             $fn(function (mixed $value = null) use (&$result) {
                 $result = $value;
-            });
+            }, Task::create(fn () => null), new Scheduler());
 
             return $result;
         }
@@ -114,7 +180,6 @@ if (!function_exists(__NAMESPACE__ . '\signal')) {
             SchedulerInterface $scheduler,
         ) use ($fn) {
             $task->suspend();
-
 
             try {
                 $fn(function (mixed $value = null) use ($scheduler, $task): void {
@@ -131,6 +196,18 @@ if (!function_exists(__NAMESPACE__ . '\signal')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\with')) {
+    /**
+     * Block the current coroutine until the result of `$expr` is truthful
+     * then the calling coroutine will receive the result of $expr
+     *
+     * @param Closure $expr The expression to run
+     * @param mixed $args arguments to pass to `$expr` on every run
+     *
+     * @return mixed The return value of `$expr`
+     *
+     * @throws FiberError
+     * @throws Throwable
+     */
     function with(Closure $expr, ...$args): mixed
     {
         return signal(function (Closure $resume) use (&$expr, &$args): void {
@@ -144,13 +221,26 @@ if (!function_exists(__NAMESPACE__ . '\with')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\tick')) {
+    /**
+     * Enables the cooperative behavior nature of the event loop, i.e
+     * handles control back to the event loop to continue executing
+     * other tasks and pause the current one.
+     *
+     * @return void
+     */
     function tick(): void
     {
-        signal(fn (callable $resume): mixed => $resume());
+        signal(fn (Closure $resume): mixed => $resume());
     }
 }
 
 if (!function_exists(__NAMESPACE__ . '\is_readable')) {
+    /**
+     * Checks the provided `$resource` if it is in a readable mode
+     *
+     * @param ResourceInterface $resource
+     * @return bool
+     */
     function is_readable(ResourceInterface $resource): bool
     {
         $modes = [
@@ -172,6 +262,11 @@ if (!function_exists(__NAMESPACE__ . '\is_readable')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\is_writeable')) {
+    /**
+     * Checks the provided `$resource` if it is in a writable mode
+     * @param ResourceInterface $resource
+     * @return bool
+     */
     function is_writeable(ResourceInterface $resource): bool
     {
         $modes = [
@@ -193,6 +288,12 @@ if (!function_exists(__NAMESPACE__ . '\is_writeable')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\channel')) {
+    /**
+     * Creates a new `Onion\Framework\Loop\Channel` to be used to
+     * to communicate with other coroutines
+     *
+     * @return ChannelInterface
+     */
     function channel(): ChannelInterface
     {
         return new Channel();
@@ -200,9 +301,16 @@ if (!function_exists(__NAMESPACE__ . '\channel')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\is_pending')) {
-    function is_pending(ResourceInterface $connection, Operation $operation = Operation::READ): bool
+    /**
+     * Checks the provided `$resource` if it has pending operation to be performed
+     *
+     * @param ResourceInterface $resource
+     * @param Operation $operation
+     * @return bool
+     */
+    function is_pending(ResourceInterface $resource, Operation $operation = Operation::READ): bool
     {
-        if ($connection->eof()) {
+        if ($resource->eof()) {
             return false;
         }
 
@@ -210,10 +318,10 @@ if (!function_exists(__NAMESPACE__ . '\is_pending')) {
 
         switch ($operation) {
             case Operation::READ:
-                $read = [$connection->getResource()];
+                $read = [$resource->getResource()];
                 break;
             case Operation::WRITE:
-                $write = [$connection->getResource()];
+                $write = [$resource->getResource()];
                 break;
         }
 
@@ -225,14 +333,33 @@ if (!function_exists(__NAMESPACE__ . '\is_pending')) {
 };
 
 if (!function_exists(__NAMESPACE__ . '\sleep')) {
-    function sleep(float $number): void
+    /**
+     * An async `sleep` function that will delay the execution of the
+     * calling function until the specified timeout is reached.
+     *
+     * @param float|int $timeout The timeout in milliseconds before
+     * continuing with the execution.
+     *
+     * @return void
+     */
+    function sleep(float | int $timeout): void
     {
-        signal(fn (Closure $resume) => Timer::after(fn () => $resume(), (int) $number * 1000));
+        signal(fn (Closure $resume) => Timer::after(fn () => $resume(), (int) $timeout * 1000));
     }
 }
 
 
 if (!function_exists(__NAMESPACE__ . '\watch')) {
+    /**
+     * Monitor a `$resource` until it is possible to perform the
+     * provided `$operation` and execute the provided `$fn`.
+     *
+     * @param ResourceInterface $resource
+     * @param Closure $fn
+     * @param Operation $operation Defaults to `read`
+     *
+     * @return TaskInterface
+     */
     function watch(
         ResourceInterface $resource,
         Closure $fn,
@@ -244,5 +371,35 @@ if (!function_exists(__NAMESPACE__ . '\watch')) {
                 coroutine($fn, [$resource]);
             };
         }, [$fn, $resource]);
+    }
+}
+
+if (!function_exists(__NAMESPACE__ . '\after')) {
+    /**
+     * Trigger the provided `$fn` after the specified timeout
+     *
+     * @param Closure $fn
+     * @param int $timeout Timeout in milliseconds
+     *
+     * @return TimerInterface
+     */
+    function after(Closure $fn, int $timeout): TimerInterface
+    {
+        return Timer::after($fn, $timeout);
+    }
+}
+
+if (!function_exists(__NAMESPACE__ . '\repeat')) {
+    /**
+     * Trigger the provided `$fn` in the set interval indefinitely until suspended
+     *
+     * @param Closure $fn
+     * @param int $interval Interval in milliseconds
+     *
+     * @return TimerInterface
+     */
+    function repeat(Closure $fn, int $interval): TimerInterface
+    {
+        return Timer::interval($fn, $interval);
     }
 }
