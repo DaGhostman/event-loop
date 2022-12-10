@@ -176,17 +176,22 @@ class Scheduler implements SchedulerInterface
 
     protected function timerPoll(int $now)
     {
-        $hasPendingTimers = false;
+        $first = array_key_first($this->timers);
+        if ($first > $now) {
+            return;
+        }
+
         foreach ($this->timers as $ts => $tasks) {
             if ($ts <= $now) {
                 foreach ($tasks as $task) {
                     $this->schedule($task);
                 }
                 unset($this->timers[$ts]);
+                continue;
             }
-        }
 
-        return $hasPendingTimers;
+            break;
+        }
     }
 
     protected function poll(): void
