@@ -57,6 +57,11 @@ class Scheduler implements SchedulerInterface
         }
     }
 
+    public function stop(): void
+    {
+        $this->started = false;
+    }
+
     public function onRead(ResourceInterface $resource, TaskInterface $task): void
     {
         $socket = $resource->getResourceId();
