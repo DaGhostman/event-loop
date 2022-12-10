@@ -6,8 +6,20 @@ namespace Onion\Framework;
 
 use Closure;
 
-use function Onion\Framework\Loop\scheduler;
-use function Onion\Framework\Loop\signal;
+use function Onion\Framework\Loop\{
+    coroutine,
+    scheduler,
+    signal,
+    tick
+};
+
+if (!defined('EVENT_LOOP_AUTOSTART')) {
+    define('EVENT_LOOP_AUTOSTART', true);
+}
+
+if (!defined('EVENT_LOOP_HANDLE_SIGNALS')) {
+    define('EVENT_LOOP_HANDLE_SIGNALS', true);
+}
 
 if (!class_exists(FileStreamWrapper::class)) {
     /**
@@ -212,7 +224,6 @@ if (!class_exists(FileStreamWrapper::class)) {
     FileStreamWrapper::register();
 }
 
-
 if (!class_exists(AsyncStreamWrapper::class)) {
     /**
      * The actual async stream handling performed to allow differentiating
@@ -400,7 +411,32 @@ if (!class_exists(AsyncStreamWrapper::class)) {
     AsyncStreamWrapper::register();
 }
 
-if (!defined('EVENT_LOOP_AUTOSTART')) {
-    define('EVENT_LOOP_AUTOSTART', true);
-    register_shutdown_function(fn () => scheduler()->start());
+if (EVENT_LOOP_AUTOSTART) {
+    register_shutdown_function(scheduler()->start(...));
+}
+
+if (EVENT_LOOP_HANDLE_SIGNALS) {
+    $signalHandler = function (int $event) {
+        if ($event === constant('PHP_WINDOWS_EVENT_CTRL_C') || $event === constant('SIGINT')) {
+
+            coroutine(function () {
+                scheduler()->stop();
+                tick();
+
+                exit(match (strtolower(PHP_OS_FAMILY)) {
+                        // 'windows' => 0,
+                    default => 130,
+                });
+            });
+        }
+    };
+
+    if (strtolower(PHP_OS_FAMILY) == 'windows') {
+        sapi_windows_set_ctrl_handler($signalHandler, true);
+    } else if (extension_loaded('pcntl')) {
+
+        declare(ticks=1) {
+            pcntl_signal(SIGINT, $signalHandler);
+        }
+    }
 }
