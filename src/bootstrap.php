@@ -424,7 +424,7 @@ if (EVENT_LOOP_HANDLE_SIGNALS) {
                 tick();
 
                 exit(match (strtolower(PHP_OS_FAMILY)) {
-                        // 'windows' => 0,
+                    'windows' => 0,
                     default => 130,
                 });
             });
