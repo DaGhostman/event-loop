@@ -3,17 +3,16 @@
 namespace Tests\Loop;
 
 use function Onion\Framework\Loop\coroutine;
-use Onion\Framework\Loop\Channels\BufferedChannel;
-
+use Onion\Framework\Loop\Channels\Channel;
 use Onion\Framework\Test\TestCase;
 
-class BufferedChannelTest extends TestCase
+class ChannelTest extends TestCase
 {
-    private BufferedChannel $channel;
+    private Channel $channel;
 
     protected function setUp(): void
     {
-        $this->channel = new BufferedChannel(1);
+        $this->channel = new Channel();
     }
 
     public function testChannel()
@@ -23,7 +22,6 @@ class BufferedChannelTest extends TestCase
             $this->channel->send(1);
             $this->channel->close();
         });
-
 
         coroutine(function () {
             $idx = 0;
@@ -39,6 +37,7 @@ class BufferedChannelTest extends TestCase
     {
         coroutine(function () {
 
+            $this->channel->send(1);
             $this->channel->send(1);
             $this->channel->close();
         });
