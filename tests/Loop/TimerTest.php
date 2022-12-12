@@ -18,9 +18,9 @@ class TimerTest extends TestCase
         $count = 0;
         $this->expectOutputString('xxxxx');
 
-        Timer::interval(function () use (&$count) {
+        $timer = Timer::interval(function () use (&$count, &$timer) {
             if ($count === 5) {
-                Coroutine::task()->kill();
+                $timer->stop();
             } else {
                 echo 'x';
                 $count++;
