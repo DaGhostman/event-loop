@@ -416,9 +416,24 @@ if (EVENT_LOOP_AUTOSTART) {
 }
 
 if (EVENT_LOOP_HANDLE_SIGNALS) {
-    $signalHandler = function (int $event) {
-        if ($event === constant('PHP_WINDOWS_EVENT_CTRL_C') || $event === constant('SIGINT')) {
+    $triggered = false;
+    $signalHandler = function (int $event) use (&$triggered) {
+        if (
+            (defined('PHP_WINDOWS_EVENT_CTRL_C') &&
+                ($event === constant('PHP_WINDOWS_EVENT_CTRL_C') || $event === constant('PHP_WINDOWS_EVENT_CTRL_BREAK'))
+            ) ||
+            (defined('SIGINT') && $event === constant('SIGINT'))
+        ) {
+            if ($triggered) {
+                fwrite(STDERR, "\nForcing termination by user request.\n");
+                exit(match (strtolower(PHP_OS_FAMILY)) {
+                    'windows' => 0,
+                    default => 130,
+                });
+            }
+            $triggered = true;
 
+            fwrite(STDOUT, "\nAttempting graceful termination by user request, repeat to force.\n");
             coroutine(function () {
                 scheduler()->stop();
                 tick();
@@ -434,9 +449,7 @@ if (EVENT_LOOP_HANDLE_SIGNALS) {
     if (strtolower(PHP_OS_FAMILY) == 'windows') {
         sapi_windows_set_ctrl_handler($signalHandler, true);
     } else if (extension_loaded('pcntl')) {
-
-        declare(ticks=1) {
-            pcntl_signal(SIGINT, $signalHandler);
-        }
+        pcntl_async_signals(true);
+        pcntl_signal(SIGINT, $signalHandler);
     }
 }
