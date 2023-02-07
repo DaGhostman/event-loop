@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Onion\Framework\Loop;
 
-use Onion\Framework\Loop\Interfaces\{CoroutineInterface, ResourceInterface, SchedulerInterface, TaskInterface};
+use Onion\Framework\Loop\Interfaces\{ResourceInterface, SchedulerInterface, TaskInterface};
 use Onion\Framework\Loop\Task;
 use SplQueue;
+use Throwable;
 
 class Scheduler implements SchedulerInterface
 {
@@ -20,15 +21,7 @@ class Scheduler implements SchedulerInterface
 
     public function __construct()
     {
-        $this->queue = $this->createQueue();
-    }
-
-    public function add(CoroutineInterface $coroutine): TaskInterface
-    {
-        $task = new Task($coroutine);
-        $this->schedule($task);
-
-        return $task;
+        $this->queue = new SplQueue();
     }
 
     public function schedule(TaskInterface $task, int $at = null): void
@@ -47,8 +40,9 @@ class Scheduler implements SchedulerInterface
 
     public function start(): void
     {
-        if ($this->started)
+        if ($this->started) {
             return;
+        }
 
         $this->started = true;
 
@@ -84,29 +78,16 @@ class Scheduler implements SchedulerInterface
         }
     }
 
-    private function createQueue(): SplQueue
-    {
-        $queue = new SplQueue();
-        $queue->setIteratorMode(SplQueue::IT_MODE_FIFO | SplQueue::IT_MODE_DELETE);
-
-        return $queue;
-    }
-
     protected function tasksPoll(): void
     {
         $frame = $this->queue;
-        $this->queue = $this->createQueue();
+        $this->queue = new SplQueue();
 
         while (!$frame->isEmpty()) {
             /** @var TaskInterface $task */
             $task = $frame->dequeue();
 
-            if ($task->isKilled() || $task->isFinished()) {
-                continue;
-            }
-
-            if ($task->isPaused()) {
-                $this->schedule($task);
+            if ($task->isKilled()) {
                 continue;
             }
 
@@ -114,18 +95,28 @@ class Scheduler implements SchedulerInterface
                 $result = $task->run();
 
                 if ($result instanceof Signal) {
-                    $this->queue->enqueue(Task::create($result, [$task, $this]));
-                    continue;
+                    try {
+                        $this->queue->enqueue(
+                            Task::create($result, [$task, $this])
+                        );
+                        continue;
+                    } catch (Throwable $ex) {
+                        if (!$task->throw($ex)) {
+                            throw $ex;
+                        }
+                    }
                 }
-            } catch (\Throwable $ex) {
-                if ($task->isFinished()) {
+            } catch (Throwable $ex) {
+                if (!$task->throw($ex)) {
                     throw $ex;
                 }
 
-                $task->throw($ex);
+                $this->schedule($task);
             }
 
-            $this->schedule($task);
+            if (!$task->isFinished()) {
+                $this->schedule($task);
+            }
         }
     }
 
@@ -136,14 +127,20 @@ class Scheduler implements SchedulerInterface
     {
         $rSocks = [];
         foreach ($this->reads as [$socket]) {
-            if (is_resource($socket)) $rSocks[] = $socket;
-            else unset($this->reads[get_resource_id($socket)]);
+            if (is_resource($socket)) {
+                $rSocks[] = $socket;
+            } else {
+                unset($this->reads[get_resource_id($socket)]);
+            }
         }
 
         $wSocks = [];
         foreach ($this->writes as [$socket]) {
-            if (is_resource($socket)) $wSocks[] = $socket;
-            else unset($this->writes[get_resource_id($socket)]);
+            if (is_resource($socket)) {
+                $wSocks[] = $socket;
+            } else {
+                unset($this->writes[get_resource_id($socket)]);
+            }
         }
 
         if (
