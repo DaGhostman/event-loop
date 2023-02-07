@@ -48,7 +48,7 @@ if (!class_exists(FileStreamWrapper::class)) {
             stream_wrapper_restore('file');
         }
 
-        private function wrap(Closure $callback, mixed ...$args)
+        private function wrap(Closure $callback, mixed...$args)
         {
             self::unregister();
             $result = @$callback(...$args);
@@ -101,7 +101,8 @@ if (!class_exists(FileStreamWrapper::class)) {
             string $mode,
             int $options,
             ?string &$opened_path,
-        ): bool {
+        ): bool
+        {
             if (substr($path, -4, 4) !== '.php') {
                 $path = 'async://' . $path;
             }
@@ -168,7 +169,7 @@ if (!class_exists(FileStreamWrapper::class)) {
             };
         }
 
-        public function stream_read(int $count): string | false
+        public function stream_read(int $count): string|false
         {
             return $this->wrap(fread(...), $this->resource, $count);
         }
@@ -189,7 +190,7 @@ if (!class_exists(FileStreamWrapper::class)) {
             };
         }
 
-        public function stream_stat(): array | false
+        public function stream_stat(): array |false
         {
             return $this->wrap(fstat(...), $this->resource);
         }
@@ -214,7 +215,7 @@ if (!class_exists(FileStreamWrapper::class)) {
             return $this->wrap(unlink(...), $path);
         }
 
-        public function url_stat(string $path, int $flags): array|false
+        public function url_stat(string $path, int $flags): array |false
         {
             return (($flags & STREAM_URL_STAT_LINK) === STREAM_URL_STAT_LINK) ?
                 $this->wrap(lstat(...), $path) :
@@ -234,6 +235,8 @@ if (!class_exists(AsyncStreamWrapper::class)) {
         private $resource;
         private $directory;
 
+        private $reportErrors;
+
         public static function register()
         {
             stream_wrapper_register('async', static::class);
@@ -243,9 +246,9 @@ if (!class_exists(AsyncStreamWrapper::class)) {
             stream_wrapper_unregister('async');
         }
 
-        private function async(Closure $fn, mixed ...$args): mixed
+        private function async(Closure $fn, mixed...$args): mixed
         {
-            return signal(fn ($resume) => $resume(@$fn(...$args)));
+            return signal(fn($resume) => $resume(@$fn(...$args)));
         }
 
         public function dir_closedir(): bool
@@ -292,7 +295,8 @@ if (!class_exists(AsyncStreamWrapper::class)) {
             string $mode,
             int $options,
             ?string &$opened_path,
-        ): bool {
+        ): bool
+        {
             $path = substr($path, 8);
             $this->resource = $this->async(fopen(...), $path, $mode);
 
@@ -315,7 +319,7 @@ if (!class_exists(AsyncStreamWrapper::class)) {
 
         public function stream_cast(int $as): mixed
         {
-            return $this->resource  ?
+            return $this->resource ?
                 $this->resource : false;
         }
 
@@ -356,7 +360,7 @@ if (!class_exists(AsyncStreamWrapper::class)) {
             };
         }
 
-        public function stream_read(int $count): string | false
+        public function stream_read(int $count): string|false
         {
             return $this->async(fread(...), $this->resource, $count);
         }
@@ -376,7 +380,7 @@ if (!class_exists(AsyncStreamWrapper::class)) {
             };
         }
 
-        public function stream_stat(): array | false
+        public function stream_stat(): array |false
         {
             return $this->async(fstat(...), $this->resource);
         }
@@ -401,7 +405,7 @@ if (!class_exists(AsyncStreamWrapper::class)) {
             return $this->async(unlink(...), $path);
         }
 
-        public function url_stat(string $path, int $flags): array|false
+        public function url_stat(string $path, int $flags): array |false
         {
             return (($flags & STREAM_URL_STAT_LINK) === STREAM_URL_STAT_LINK) ?
                 $this->async(lstat(...), $path) :
@@ -434,21 +438,23 @@ if (EVENT_LOOP_HANDLE_SIGNALS) {
             $triggered = true;
 
             fwrite(STDOUT, "\nAttempting graceful termination by user request, repeat to force.\n");
-            coroutine(function () {
-                scheduler()->stop();
-                tick();
+            coroutine(
+                function () {
+                    scheduler()->stop();
+                    tick();
 
-                exit(match (strtolower(PHP_OS_FAMILY)) {
-                    'windows' => 0,
-                    default => 130,
-                });
-            });
+                    exit(match (strtolower(PHP_OS_FAMILY)) {
+                        'windows' => 0,
+                        default => 130,
+                    });
+                }
+            );
         }
     };
 
     if (strtolower(PHP_OS_FAMILY) == 'windows') {
         sapi_windows_set_ctrl_handler($signalHandler, true);
-    } else if (extension_loaded('pcntl')) {
+    } elseif (extension_loaded('pcntl')) {
         pcntl_async_signals(true);
         pcntl_signal(SIGINT, $signalHandler);
     }
