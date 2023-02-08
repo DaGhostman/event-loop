@@ -2,9 +2,9 @@
 
 namespace Onion\Framework\Event;
 
-use function Onion\Framework\Loop\{coroutine, signal, tick};
-use Onion\Framework\Loop\Interfaces\{SchedulerInterface, TaskInterface};
 use Psr\EventDispatcher\{EventDispatcherInterface, ListenerProviderInterface, StoppableEventInterface};
+
+use function Onion\Framework\Loop\signal;
 
 class Dispatcher implements EventDispatcherInterface
 {
@@ -17,25 +17,29 @@ class Dispatcher implements EventDispatcherInterface
 
     public function dispatch(object $event): object
     {
-        return signal(function (callable $resume, TaskInterface $task, SchedulerInterface $scheduler) use ($event) {
-            coroutine(function () use ($resume, $task, $scheduler, $event) {
-                try {
-                    foreach ($this->listenerProvider->getListenersForEvent($event) as $listener) {
-                        if ($event instanceof StoppableEventInterface && $event->isPropagationStopped()) {
-                            break;
-                        }
 
-                        $listener($event);
-                        tick();
-                    }
+        $listeners = (function ($event): \Generator {
+            yield from $this->listenerProvider->getListenersForEvent($event);
+        })($event);
 
-                    $task->resume($event);
-                } catch (\Throwable $ex) {
-                    $task->throw($ex);
-                } finally {
-                    $scheduler->schedule($task);
-                }
-            });
+
+        $next = function ($event, $iterator) use (&$next): object  {
+            return signal(function (\Closure $resume) use ($event, &$next, $iterator) {
+            if ($event instanceof StoppableEventInterface && $event->isPropagationStopped()) {
+                $resume($event);
+                return;
+            }
+
+            $current = $iterator->current();
+            if ($current) {
+                $iterator->next();
+                $resume($next($current($event) ?? $event, $iterator));
+            } else {
+                $resume($event);
+            }
         });
+    };
+
+        return $next($event, $listeners);
     }
 }
