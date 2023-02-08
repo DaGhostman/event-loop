@@ -7,79 +7,72 @@ namespace Onion\Framework\Loop\Channels;
 use Closure;
 use Onion\Framework\Loop\Channels\ChannelValue;
 use Onion\Framework\Loop\Interfaces\Channels\ChannelInterface;
-use Onion\Framework\Loop\Interfaces\ResourceInterface;
-use RuntimeException;
-use SplQueue;
-use Onion\Framework\Loop\Descriptor;
 use Onion\Framework\Loop\Interfaces\Channels\ChannelValueInterface;
+use SplQueue;
 
-use function Onion\Framework\Loop\read;
 use function Onion\Framework\Loop\signal;
-use function Onion\Framework\Loop\write;
 
 class Channel implements ChannelInterface
 {
-    private readonly SplQueue $queue;
     private bool $open = true;
-
-    private readonly ResourceInterface $readableStream;
-    private readonly ResourceInterface $writableStream;
+    private readonly SplQueue $queue;
+    private readonly SplQueue $waiting;
 
     public function __construct()
     {
-        $streams = stream_socket_pair(
-            STREAM_PF_INET,
-            STREAM_SOCK_STREAM,
-            STREAM_IPPROTO_TCP
-        );
-
-        if (!$streams) {
-            throw new RuntimeException(
-                'Unable to initialize channel streams'
-            );
-        }
-
-        $this->readableStream = new Descriptor($streams[0]);
-        $this->writableStream = new Descriptor($streams[1]);
+        $this->waiting = new SplQueue();
         $this->queue = new SplQueue();
     }
 
     public function close(): void
     {
         $this->open = false;
-        $this->readableStream->close();
-        $this->writableStream->close();
+
+        while (!$this->waiting->isEmpty()) {
+            $this->waiting->dequeue()(null, false);
+        }
     }
 
     public function recv(): ChannelValueInterface
     {
         return signal(function (Closure $resume) {
-            read($this->readableStream, function (ResourceInterface $resource) use ($resume) {
-                $resource->read(2);
-
+            if ($this->queue->isEmpty()) {
+                if (!$this->open) {
+                    $resume(new ChannelValue(null, $this->open));
+                } else {
+                    $this->waiting->enqueue(function (mixed $item) use ($resume) {
+                        $resume(new ChannelValue($item, $this->open));
+                    });
+                }
+            } else {
                 $resume(
                     !$this->open && $this->queue->isEmpty() ?
                         new ChannelValue(null, false) :
                         new ChannelValue($this->queue->dequeue(), $this->open || !$this->queue->isEmpty())
                 );
-            });
+            }
         });
     }
 
     public function send(mixed ...$data): bool
     {
-        if ($this->open) {
-            write($this->writableStream, function (ResourceInterface $resource) use (&$data) {
-                foreach ($data as $value) {
-                    $this->queue->enqueue($value);
+        return signal(function ($resume) use ($data) {
+            if (!$this->open) {
+                $resume(false);
+            }
+
+            while (!$this->waiting->isEmpty() && !empty($data)) {
+                foreach ($data as $idx => $value) {
+                    $this->waiting->dequeue()($value);
+                    unset($data[$idx]);
                 }
+            }
 
-                $resource->write('.');
-            });
+            foreach ($data as $value) {
+                $this->queue->enqueue($value);
+            }
 
-            return true;
-        }
-
-        return false;
+            $resume(false);
+        });
     }
 }
