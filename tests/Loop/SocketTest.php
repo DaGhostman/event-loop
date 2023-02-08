@@ -2,13 +2,13 @@
 
 namespace Tests\Loop;
 
-use function Onion\Framework\Loop\coroutine;
 use InvalidArgumentException;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Loop\Socket;
 use Onion\Framework\Loop\Types\Operation;
-
 use Onion\Framework\Test\TestCase;
+
+use function Onion\Framework\Loop\coroutine;
 
 class SocketTest extends TestCase
 {
@@ -50,17 +50,5 @@ class SocketTest extends TestCase
         $this->assertNotSame('', $socket->read(1024));
 
         $socket->close();
-    }
-
-    public function testAcceptOnInvalidResource()
-    {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/^Expected argument to be resource/i');
-
-        $fp = fopen('php://temp', 'r');
-        $socket = new Socket($fp);
-        $socket->unblock();
-
-        $socket->accept(1);
     }
 }

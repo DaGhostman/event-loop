@@ -2,15 +2,13 @@
 
 namespace Tests;
 
-use function Onion\Framework\Loop\scheduler;
-
 use InvalidArgumentException;
-use LogicException;
 use Onion\Framework\Loop\Descriptor;
-use Onion\Framework\Loop\Exceptions\BadStreamOperation;
 use Onion\Framework\Loop\Task;
 use Onion\Framework\Loop\Types\Operation;
 use Onion\Framework\Test\TestCase;
+
+use function Onion\Framework\Loop\scheduler;
 
 class DescriptorTest extends TestCase
 {
@@ -21,14 +19,6 @@ class DescriptorTest extends TestCase
     {
         $this->resource = fopen(tempnam(sys_get_temp_dir(), uniqid()), 'a+');
         $this->name = stream_get_meta_data($this->resource)['uri'] ?? null;
-    }
-
-    public function testCreateFromInvalid()
-    {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/got null instead/i');
-
-        new Descriptor(null);
     }
 
     public function testReadingFromFile()

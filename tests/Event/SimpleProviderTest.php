@@ -15,7 +15,7 @@ class SimpleProviderTest extends TestCase
             EventA::class => [fn () => null],
         ]);
 
-        $this->assertCount(1, $provider->getListenersForEvent(new EventA));
+        $this->assertCount(1, $provider->getListenersForEvent(new EventA()));
     }
 
     public function testEventRetrievalByTransformedName()
@@ -24,7 +24,7 @@ class SimpleProviderTest extends TestCase
             'tests.event.stubs.eventa' => [fn () => null],
         ]);
 
-        $this->assertCount(1, $provider->getListenersForEvent(new EventA));
+        $this->assertCount(1, $provider->getListenersForEvent(new EventA()));
     }
 
     public function testEventRetrievalOfNonExisting()
@@ -33,6 +33,6 @@ class SimpleProviderTest extends TestCase
             'tests.events.stubs.eventa' => [fn () => null],
         ]);
 
-        $this->assertCount(0, $provider->getListenersForEvent(new stdClass));
+        $this->assertCount(0, $provider->getListenersForEvent(new stdClass()));
     }
 }

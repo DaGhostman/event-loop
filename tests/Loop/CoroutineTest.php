@@ -2,12 +2,9 @@
 
 namespace Tests;
 
-use function Onion\Framework\Loop\coroutine;
-use function Onion\Framework\Loop\scheduler;
-use function Onion\Framework\Loop\signal;
-use function Onion\Framework\Loop\tick;
-
 use Onion\Framework\Test\TestCase;
+
+use function Onion\Framework\Loop\{coroutine, scheduler, signal, tick};
 
 class CoroutineTest extends TestCase
 {
@@ -27,7 +24,7 @@ class CoroutineTest extends TestCase
 
         coroutine(function () {
             throw new \RuntimeException('received');
-        });
+        })->sync();
     }
 
     public function testExternalExceptionHandling()
@@ -35,7 +32,7 @@ class CoroutineTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('received');
 
-        coroutine(fn () => signal(fn ($resume) => $resume()))
+        coroutine(fn() => signal(fn($resume) => $resume()))
             ->throw(new \RuntimeException('received'));
     }
 
@@ -46,9 +43,11 @@ class CoroutineTest extends TestCase
 
         coroutine(function () {
             try {
-                signal(function () {
-                    throw new \RuntimeException('ex');
-                });
+                signal(
+                    function () {
+                        throw new \RuntimeException('ex');
+                    }
+                );
             } catch (\Throwable $ex) {
                 throw new \RuntimeException('received');
             }
@@ -58,7 +57,7 @@ class CoroutineTest extends TestCase
     public function testCoroutineSignals()
     {
         coroutine(function () {
-            $this->assertSame('x', signal(fn ($resume) => $resume('x')));
+            $this->assertSame('x', signal(fn($resume) => $resume('x')));
         });
     }
 
@@ -76,7 +75,7 @@ class CoroutineTest extends TestCase
     public function testCoroutineStatus()
     {
         coroutine(function () {
-            $coroutine = coroutine(fn () => signal(fn () => null));
+            $coroutine = coroutine(fn() => signal(fn() => null));
             tick();
             $this->assertTrue($coroutine->isPaused());
             $this->assertFalse($coroutine->isFinished());
@@ -88,7 +87,7 @@ class CoroutineTest extends TestCase
     {
         $this->expectOutputString('test');
         $coroutine = coroutine(function () {
-            signal(fn () => null);
+            signal(fn() => null);
 
             echo 'test';
         });

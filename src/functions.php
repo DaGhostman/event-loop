@@ -45,13 +45,13 @@ if (!function_exists(__NAMESPACE__ . '\read')) {
     ): mixed {
         return $blocking ?
             signal(
-                fn (
-                    Closure $resume,
-                    TaskInterface $task,
-                    SchedulerInterface $scheduler,
+                fn(
+                Closure $resume,
+                TaskInterface $task,
+                SchedulerInterface $scheduler,
                 ) => $scheduler->onRead(
                     $socket,
-                    Task::create(fn () => $resume(($fn ?? fn () => null)($socket)))
+                    Task::create(fn() => $resume(($fn ?? fn() => null)($socket)))
                 )
             ) : scheduler()->onRead($socket, Task::create($fn, [$socket]));
     }
@@ -83,13 +83,13 @@ if (!function_exists(__NAMESPACE__ . '\write')) {
     ): mixed {
         return $blocking ?
             signal(
-                fn (
-                    Closure $resume,
-                    TaskInterface $task,
-                    SchedulerInterface $scheduler,
+                fn(
+                Closure $resume,
+                TaskInterface $task,
+                SchedulerInterface $scheduler,
                 ) => $scheduler->onWrite(
                     $socket,
-                    Task::create(fn () => $resume(($fn ?? fn () => null)($socket)))
+                    Task::create(fn() => $resume(($fn ?? fn() => null)($socket)))
                 )
             ) : scheduler()->onWrite($socket, Task::create($fn, [$socket]));
     }
@@ -139,10 +139,11 @@ if (!function_exists(__NAMESPACE__ . '\coroutine')) {
      */
     function coroutine(Closure $fn, array $args = []): TaskInterface
     {
-        $coroutine = Task::create($fn, $args);
-        scheduler()->schedule($coroutine);
-
-        return $coroutine;
+        return signal(function (Closure $resume, TaskInterface $task, SchedulerInterface $scheduler) use ($fn, $args) {
+            $t = Task::create($fn, $args);
+            $scheduler->schedule($t);
+            $resume($t);
+        });
     }
 }
 
@@ -163,31 +164,23 @@ if (!function_exists(__NAMESPACE__ . '\signal')) {
     function signal(Closure $fn): mixed
     {
         if (!Fiber::getCurrent() || !class_exists(Signal::class)) {
-            trigger_error(
-                'Currently running outside of scheduler, $task & $scheduler will have no effect. Did you forget to wrap inside `coroutine()`?',
-                E_USER_NOTICE,
-            );
-
             $result = null;
             $fn(function (mixed $value = null) use (&$result) {
                 $result = $value;
-            }, Task::create(fn () => null), new Scheduler());
+            }, Task::create(fn() => null), scheduler());
 
             return $result;
         }
-        return Fiber::suspend(new Signal(function (
-            TaskInterface $task,
-            SchedulerInterface $scheduler,
-        ) use ($fn) {
+        return Fiber::suspend(new Signal(function (TaskInterface $task, SchedulerInterface $scheduler,) use ($fn) {
             $task->suspend();
 
             try {
-                $fn(function (mixed $value = null) use ($scheduler, $task): void {
-
-                    $task->resume($value);
-                    $scheduler->schedule($task);
-                }, $task, $scheduler);
-            } catch (\Throwable $ex) {
+                $fn(
+                    fn (mixed $value = null) => $task->resume($value) && $scheduler->schedule($task),
+                    $task,
+                    $scheduler
+                );
+            } catch (Throwable $ex) {
                 $task->throw($ex);
                 $scheduler->schedule($task);
             }
@@ -230,7 +223,7 @@ if (!function_exists(__NAMESPACE__ . '\tick')) {
      */
     function tick(): void
     {
-        signal(fn (Closure $resume): mixed => $resume());
+        signal(fn(Closure $resume): mixed => $resume());
     }
 }
 
@@ -244,10 +237,22 @@ if (!function_exists(__NAMESPACE__ . '\is_readable')) {
     function is_readable(ResourceInterface $resource): bool
     {
         $modes = [
-            'r' => true, 'w+' => true, 'r+' => true, 'x+' => true,
-            'c+' => true, 'rb' => true, 'w+b' => true, 'r+b' => true,
-            'x+b' => true, 'c+b' => true, 'rt' => true, 'w+t' => true,
-            'r+t' => true, 'x+t' => true, 'c+t' => true, 'a+' => true,
+            'r' => true,
+            'w+' => true,
+            'r+' => true,
+            'x+' => true,
+            'c+' => true,
+            'rb' => true,
+            'w+b' => true,
+            'r+b' => true,
+            'x+b' => true,
+            'c+b' => true,
+            'rt' => true,
+            'w+t' => true,
+            'r+t' => true,
+            'x+t' => true,
+            'c+t' => true,
+            'a+' => true,
             'a+b' => true,
         ];
 
@@ -270,11 +275,24 @@ if (!function_exists(__NAMESPACE__ . '\is_writeable')) {
     function is_writeable(ResourceInterface $resource): bool
     {
         $modes = [
-            'w' => true, 'w+' => true, 'rw' => true, 'r+' => true,
-            'x+' => true, 'c+' => true, 'wb' => true, 'w+b' => true,
-            'r+b' => true, 'x+b' => true, 'c+b' => true, 'w+t' => true,
-            'r+t' => true, 'x+t' => true, 'c+t' => true, 'a' => true,
-            'a+' => true, 'a+b' => true,
+            'w' => true,
+            'w+' => true,
+            'rw' => true,
+            'r+' => true,
+            'x+' => true,
+            'c+' => true,
+            'wb' => true,
+            'w+b' => true,
+            'r+b' => true,
+            'x+b' => true,
+            'c+b' => true,
+            'w+t' => true,
+            'r+t' => true,
+            'x+t' => true,
+            'c+t' => true,
+            'a' => true,
+            'a+' => true,
+            'a+b' => true,
         ];
 
         if ($resource->eof()) {
@@ -330,7 +348,7 @@ if (!function_exists(__NAMESPACE__ . '\is_pending')) {
 
         return $result !== false && $result > 0;
     }
-};
+}
 
 if (!function_exists(__NAMESPACE__ . '\sleep')) {
     /**
@@ -340,11 +358,31 @@ if (!function_exists(__NAMESPACE__ . '\sleep')) {
      * @param float|int $timeout The timeout in milliseconds before
      * continuing with the execution.
      *
+     * @deprecated
+     * @see delay
+     *
      * @return void
      */
-    function sleep(float | int $timeout): void
+    function sleep(float|int $timeout): void
     {
-        signal(fn (Closure $resume) => Timer::after(fn () => $resume(), (int) $timeout * 1000));
+        signal(fn(Closure $resume) => Timer::after(fn() => $resume(), (int) $timeout * 1000));
+    }
+}
+
+if (!function_exists(__NAMESPACE__ . '\delay')) {
+    /**
+     * An async wait function that will delay the execution of the
+     * calling function until the specified timeout is reached.
+     *
+     * @param float|int $timeout The timeout in milliseconds before
+     * continuing with the execution.
+     *
+     *
+     * @return void
+     */
+    function delay(float|int $timeout): void
+    {
+        signal(fn(Closure $resume) => Timer::after(fn() => $resume(), (int) $timeout * 1000));
     }
 }
 
@@ -369,7 +407,7 @@ if (!function_exists(__NAMESPACE__ . '\watch')) {
             while (is_pending($resource, $operation)) {
                 $resource->wait($operation);
                 coroutine($fn, [$resource]);
-            };
+            }
         }, [$fn, $resource]);
     }
 }

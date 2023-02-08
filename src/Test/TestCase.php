@@ -2,11 +2,10 @@
 
 namespace Onion\Framework\Test;
 
-use function Onion\Framework\Loop\coroutine;
-use function Onion\Framework\Loop\scheduler;
 use Onion\Framework\Loop\Scheduler;
-
 use PHPUnit\Framework\TestCase as PhpUnitTestCase;
+
+use function Onion\Framework\Loop\{coroutine, scheduler};
 
 class TestCase extends PhpUnitTestCase
 {

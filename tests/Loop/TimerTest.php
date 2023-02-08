@@ -2,7 +2,6 @@
 
 namespace Tests;
 
-use Onion\Framework\Loop\Coroutine;
 use Onion\Framework\Loop\Timer;
 use Onion\Framework\Test\TestCase;
 
@@ -10,7 +9,7 @@ class TimerTest extends TestCase
 {
     public function testExecutionAfter()
     {
-        Timer::after(fn () => $this->assertTrue(true), 0);
+        Timer::after(fn() => $this->assertTrue(true), 0);
     }
 
     public function testExecutionInterval()

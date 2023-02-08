@@ -23,22 +23,22 @@ class Dispatcher implements EventDispatcherInterface
         })($event);
 
 
-        $next = function ($event, $iterator) use (&$next): object  {
+        $next = function ($event, $iterator) use (&$next): object {
             return signal(function (\Closure $resume) use ($event, &$next, $iterator) {
-            if ($event instanceof StoppableEventInterface && $event->isPropagationStopped()) {
-                $resume($event);
-                return;
-            }
+                if ($event instanceof StoppableEventInterface && $event->isPropagationStopped()) {
+                    $resume($event);
+                    return;
+                }
 
-            $current = $iterator->current();
-            if ($current) {
-                $iterator->next();
-                $resume($next($current($event) ?? $event, $iterator));
-            } else {
-                $resume($event);
-            }
-        });
-    };
+                $current = $iterator->current();
+                if ($current) {
+                    $iterator->next();
+                    $resume($next($current($event) ?? $event, $iterator));
+                } else {
+                    $resume($event);
+                }
+            });
+        };
 
         return $next($event, $listeners);
     }

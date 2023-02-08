@@ -2,9 +2,10 @@
 
 namespace Tests\Loop;
 
-use function Onion\Framework\Loop\coroutine;
 use Onion\Framework\Loop\Channels\Channel;
 use Onion\Framework\Test\TestCase;
+
+use function Onion\Framework\Loop\coroutine;
 
 class ChannelTest extends TestCase
 {
@@ -26,7 +27,9 @@ class ChannelTest extends TestCase
         coroutine(function () {
             $idx = 0;
             while ([$value, $ok] = $this->channel->recv()) {
-                if (!$ok) break;
+                if (!$ok) {
+                    break;
+                }
                 $this->assertSame(1, $value);
                 $idx++;
             }

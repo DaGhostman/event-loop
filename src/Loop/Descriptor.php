@@ -4,14 +4,10 @@ declare(strict_types=1);
 
 namespace Onion\Framework\Loop;
 
-use function Onion\Framework\Loop\signal;
-
-use Onion\Framework\Loop\Exceptions\DeadStreamException;
-use Onion\Framework\Loop\Interfaces\ResourceInterface;
-use Onion\Framework\Loop\Interfaces\SchedulerInterface;
-use Onion\Framework\Loop\Interfaces\TaskInterface;
-
+use Onion\Framework\Loop\Interfaces\{ResourceInterface, SchedulerInterface, TaskInterface};
 use Onion\Framework\Loop\Types\Operation;
+
+use function Onion\Framework\Loop\signal;
 
 class Descriptor implements ResourceInterface
 {
@@ -21,18 +17,12 @@ class Descriptor implements ResourceInterface
 
     public function __construct(mixed $resource)
     {
-        if (!is_resource($resource)) {
-            throw new \InvalidArgumentException(sprintf(
-                'Expected argument to be resource, got %s instead.',
-                gettype($resource)
-            ));
-        }
-
-        $this->resourceId = get_resource_id($resource);
+        $this->resourceId = is_object($resource) ?
+            spl_object_id($resource) : get_resource_id($resource);
         $this->resource = $resource;
     }
 
-    public function read(int $size): string | false
+    public function read(int $size): string|false
     {
         if (!is_readable($this)) {
             return false;
@@ -41,7 +31,7 @@ class Descriptor implements ResourceInterface
         return fread($this->getResource(), $size);
     }
 
-    public function write(string $data): int | false
+    public function write(string $data): int|false
     {
         if (!is_writeable($this)) {
             return false;
@@ -108,11 +98,7 @@ class Descriptor implements ResourceInterface
 
     public function wait(Operation $operation = Operation::READ): void
     {
-        signal(function (
-            callable $resume,
-            TaskInterface $task,
-            SchedulerInterface $scheduler
-        ) use ($operation) {
+        signal(function (callable $resume, TaskInterface $task, SchedulerInterface $scheduler) use ($operation) {
             $task->resume();
             switch ($operation) {
                 case Operation::READ:

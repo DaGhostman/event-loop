@@ -4,7 +4,6 @@ namespace Tests\Event;
 
 use Onion\Framework\Event\ListenerProviders\AggregateProvider;
 use Onion\Framework\Event\ListenerProviders\SimpleProvider;
-
 use PHPUnit\Framework\TestCase;
 use Prophecy\Argument;
 use Prophecy\PhpUnit\ProphecyTrait;
@@ -20,13 +19,13 @@ class AggregateProviderTest extends TestCase
         $simple1 = $this->prophesize(SimpleProvider::class);
         $simple1->getListenersForEvent(
             Argument::type(EventA::class)
-        )->willReturn([fn () => null]);
+        )->willReturn([fn() => null]);
         $simple1->getListenersForEvent(Argument::any())->willReturn([]);
 
         $simple2 = $this->prophesize(SimpleProvider::class);
         $simple2->getListenersForEvent(
             Argument::type(EventA::class)
-        )->willReturn([fn () => null]);
+        )->willReturn([fn() => null]);
         $simple2->getListenersForEvent(Argument::any())->willReturn([]);
 
         $simple3 = $this->prophesize(SimpleProvider::class);
@@ -40,7 +39,7 @@ class AggregateProviderTest extends TestCase
         $provider->addProvider($simple2->reveal());
         $provider->addProvider($simple3->reveal());
 
-        $this->assertCount(2, $provider->getListenersForEvent(new EventA));
-        $this->assertCount(0, $provider->getListenersForEvent(new stdClass));
+        $this->assertCount(2, iterator_to_array($provider->getListenersForEvent(new EventA()), false));
+        $this->assertCount(0, iterator_to_array($provider->getListenersForEvent(new stdClass()), false));
     }
 }

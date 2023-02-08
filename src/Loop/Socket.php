@@ -54,8 +54,10 @@ class Socket extends Descriptor implements SocketInterface
             }
         };
 
-        return signal(function (callable $resume, TaskInterface $task, SchedulerInterface $scheduler) use ($timeout, $waitFn) {
-            $scheduler->schedule(Task::create($waitFn, [$task, $scheduler, $this, $timeout]));
-        });
+        return signal(
+            function (callable $resume, TaskInterface $task, SchedulerInterface $scheduler) use ($timeout, $waitFn) {
+                $scheduler->schedule(Task::create($waitFn, [$task, $scheduler, $this, $timeout]));
+            }
+        );
     }
 }
