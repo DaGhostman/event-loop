@@ -7,7 +7,6 @@ use Fiber;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
 use Onion\Framework\Promise\Deferred;
 use Onion\Framework\Promise\Interfaces\DeferredInterface;
-use Spatie\Backtrace\Backtrace;
 use Throwable;
 
 class Task implements TaskInterface
@@ -16,7 +15,6 @@ class Task implements TaskInterface
     private mixed $value = null;
 
     protected bool $killed = false;
-    public readonly Backtrace $trace;
 
     private ?DeferredInterface $deferred = null;
 
@@ -24,7 +22,6 @@ class Task implements TaskInterface
         private readonly Fiber $coroutine,
         private readonly mixed $args,
     ) {
-        $this->trace = Backtrace::create();
     }
 
     public function run(): mixed
