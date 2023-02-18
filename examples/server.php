@@ -1,12 +1,10 @@
 <?php
 
-use function Onion\Framework\Loop\coroutine;
-use function Onion\Framework\Loop\read;
-use function Onion\Framework\Loop\scheduler;
-use function Onion\Framework\Loop\write;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Loop\Interfaces\SocketInterface;
 use Onion\Framework\Loop\Socket;
+
+use function Onion\Framework\Loop\{coroutine, read, scheduler, write};
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
@@ -17,7 +15,7 @@ $server = function (int $port) {
     echo "Server listening on {$port}\n";
     while (true) {
         read($socket, function (SocketInterface $socket) {
-            $connection = $socket->accept(null);
+            $connection = $socket->accept();
             $connection->unblock();
 
             if (!$connection->isAlive()) {

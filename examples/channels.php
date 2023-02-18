@@ -1,26 +1,26 @@
 <?php
 
+use Onion\Framework\Loop\Interfaces\Channels\ChannelInterface;
+use Onion\Framework\Loop\Interfaces\TaskInterface;
+
 use function Onion\Framework\Loop\channel;
 use function Onion\Framework\Loop\coroutine;
 use function Onion\Framework\Loop\scheduler;
-
-use function Onion\Framework\Loop\tick;
-
-use Onion\Framework\Loop\Channels\AbstractChannel;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-function startReceiver(int $i, AbstractChannel &$channel)
+function startReceiver(int $i, ChannelInterface $channel): TaskInterface
 {
-    return coroutine(function (AbstractChannel $channel) use (&$i) {
+    return coroutine(function (ChannelInterface $channel) use (&$i) {
         echo 'Starting receiver' . PHP_EOL;
         while ([$value, $ok] = $channel->recv()) {
-            if (!$ok) break;
+            if (!$ok) {
+                break;
+            }
             echo "<< #{$i}: {$value}\n";
-            tick();
         }
         echo "Ending Receiver #{$i}" . PHP_EOL;
     }, [$channel]);
@@ -28,16 +28,6 @@ function startReceiver(int $i, AbstractChannel &$channel)
 
 coroutine(function () {
     $bufferedChannel = channel();
-    coroutine(function (AbstractChannel $channel) use (&$i) {
-        echo 'Starting sender' . PHP_EOL;
-        for ($i = 0; $i < 100; $i++) {
-            $channel->send($i);
-            echo ">> {$i}\n";
-        }
-        $channel->close();
-        echo 'Ending sender' . PHP_EOL;
-    }, [$bufferedChannel]);
-
     startReceiver(1, $bufferedChannel);
     startReceiver(2, $bufferedChannel);
     startReceiver(3, $bufferedChannel);
@@ -49,5 +39,17 @@ coroutine(function () {
     startReceiver(9, $bufferedChannel);
     startReceiver(10, $bufferedChannel);
     startReceiver(11, $bufferedChannel);
+    coroutine(
+        function (ChannelInterface $channel) use (&$i) {
+            echo 'Starting sender' . PHP_EOL;
+            for ($i = 0; $i < 100; $i++) {
+                $channel->send($i);
+                echo ">> {$i}\n";
+            }
+            $channel->close();
+            echo 'Ending sender' . PHP_EOL;
+        },
+        [$bufferedChannel]
+    );
 });
 scheduler()->start();

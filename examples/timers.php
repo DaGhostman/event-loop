@@ -1,9 +1,8 @@
 <?php
 
-use function Onion\Framework\Loop\coroutine;
-use function Onion\Framework\Loop\scheduler;
-
 use Onion\Framework\Loop\Timer;
+
+use function Onion\Framework\Loop\coroutine;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
@@ -19,5 +18,3 @@ coroutine(function () {
         var_dump(microtime(true));
     }, 500);
 });
-
-scheduler()->start();
