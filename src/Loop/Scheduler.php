@@ -195,7 +195,7 @@ class Scheduler implements SchedulerInterface
     {
         $tick = (int) (hrtime(true) / 1e+3);
         $isEmpty = $this->queue->isEmpty();
-        $timeout = $isEmpty ? null : 0;
+        $timeout = $isEmpty ? EVENT_LOOP_STREAM_IDLE_TIMEOUT : 0;
         if (!empty($this->timers) && $isEmpty) {
             $diff = array_key_first($this->timers) - $tick;
             $timeout = (int) ($diff <= 0 ? 0 : $diff);
