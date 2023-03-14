@@ -20,7 +20,7 @@ class Timer implements TimerInterface
         $this->task->get()?->kill();
     }
 
-    private static function create(Closure $coroutine, int $ms, bool $repeating = true): TimerInterface
+    private static function create(Closure $coroutine, int $ms, bool $repeating = true): static
     {
         // Convert milliseconds to microseconds
         $ms *= 1000;

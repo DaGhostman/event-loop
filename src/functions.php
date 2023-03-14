@@ -14,7 +14,6 @@ use Onion\Framework\Loop\Interfaces\{
     TaskInterface,
     TimerInterface
 };
-use Onion\Framework\Loop\Interfaces\Channels\ChannelInterface;
 use Onion\Framework\Loop\Scheduler;
 use Onion\Framework\Loop\Types\Operation;
 use Throwable;
@@ -45,13 +44,13 @@ if (!function_exists(__NAMESPACE__ . '\read')) {
     ): mixed {
         return $blocking ?
             signal(
-                fn(
-                Closure $resume,
-                TaskInterface $task,
-                SchedulerInterface $scheduler,
+                fn (
+                    Closure $resume,
+                    TaskInterface $task,
+                    SchedulerInterface $scheduler,
                 ) => $scheduler->onRead(
                     $socket,
-                    Task::create(fn() => $resume(($fn ?? fn() => null)($socket)))
+                    Task::create(fn () => $resume(($fn ?? fn () => null)($socket)))
                 )
             ) : scheduler()->onRead($socket, Task::create($fn, [$socket]));
     }
@@ -83,13 +82,13 @@ if (!function_exists(__NAMESPACE__ . '\write')) {
     ): mixed {
         return $blocking ?
             signal(
-                fn(
-                Closure $resume,
-                TaskInterface $task,
-                SchedulerInterface $scheduler,
+                fn (
+                    Closure $resume,
+                    TaskInterface $task,
+                    SchedulerInterface $scheduler,
                 ) => $scheduler->onWrite(
                     $socket,
-                    Task::create(fn() => $resume(($fn ?? fn() => null)($socket)))
+                    Task::create(fn () => $resume(($fn ?? fn () => null)($socket)))
                 )
             ) : scheduler()->onWrite($socket, Task::create($fn, [$socket]));
     }
@@ -105,21 +104,16 @@ if (!function_exists(__NAMESPACE__ . '\scheduler')) {
      *
      * @param null|SchedulerInterface $instance No argument is needed
      * when fetching the currently active one
-     *
-     * @return SchedulerInterface
-     *
      */
     function scheduler(
         ?SchedulerInterface $instance = null,
-    ): SchedulerInterface {
+    ): SchedulerInterface|null {
         /** @var SchedulerInterface|null $scheduler */
         static $scheduler;
-        if (!$scheduler && class_exists(Scheduler::class, true)) {
-            $scheduler = new Scheduler();
-        }
-
         if ($instance !== null) {
             $scheduler = $instance;
+        } else if (!$scheduler && class_exists(Scheduler::class, true)) {
+            $scheduler = new Scheduler();
         }
 
         return $scheduler;
@@ -167,7 +161,7 @@ if (!function_exists(__NAMESPACE__ . '\signal')) {
             $result = null;
             $fn(function (mixed $value = null) use (&$result) {
                 $result = $value;
-            }, Task::create(fn() => null), scheduler());
+            }, Task::create(fn () => null), scheduler());
 
             return $result;
         }
@@ -223,7 +217,7 @@ if (!function_exists(__NAMESPACE__ . '\tick')) {
      */
     function tick(): void
     {
-        signal(fn(Closure $resume): mixed => $resume());
+        signal(fn (Closure $resume): mixed => $resume());
     }
 }
 
@@ -309,10 +303,8 @@ if (!function_exists(__NAMESPACE__ . '\channel')) {
     /**
      * Creates a new `Onion\Framework\Loop\Channel` to be used to
      * to communicate with other coroutines
-     *
-     * @return ChannelInterface
      */
-    function channel(): ChannelInterface
+    function channel(): Channel
     {
         return new Channel();
     }
@@ -332,7 +324,7 @@ if (!function_exists(__NAMESPACE__ . '\is_pending')) {
             return false;
         }
 
-        $read = $write = $error = null;
+        $read = $write = null;
 
         switch ($operation) {
             case Operation::READ:
@@ -359,13 +351,13 @@ if (!function_exists(__NAMESPACE__ . '\sleep')) {
      * continuing with the execution.
      *
      * @deprecated
-     * @see delay
+     * @see \Onion\Framework\Loop\delay
      *
      * @return void
      */
     function sleep(float|int $timeout): void
     {
-        signal(fn(Closure $resume) => Timer::after(fn() => $resume(), (int) $timeout * 1000));
+        signal(fn (Closure $resume) => Timer::after(fn () => $resume(), (int) $timeout * 1000));
     }
 }
 
@@ -382,7 +374,7 @@ if (!function_exists(__NAMESPACE__ . '\delay')) {
      */
     function delay(float|int $timeout): void
     {
-        signal(fn(Closure $resume) => Timer::after(fn() => $resume(), (int) $timeout * 1000));
+        signal(fn (Closure $resume) => Timer::after(fn () => $resume(), (int) $timeout * 1000));
     }
 }
 

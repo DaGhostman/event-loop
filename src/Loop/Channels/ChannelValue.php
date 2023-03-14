@@ -37,12 +37,12 @@ class ChannelValue implements ChannelValueInterface
         );
     }
 
-    public function offsetUnset(mixed $offset): void
+    public function offsetUnset(mixed $offset): never
     {
         throw new BadMethodCallException('Not supported');
     }
 
-    public function offsetSet(mixed $offset, mixed $value): void
+    public function offsetSet(mixed $offset, mixed $value): never
     {
         throw new BadMethodCallException("Unable to set {$offset} on readonly object");
     }

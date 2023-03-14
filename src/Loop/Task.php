@@ -123,7 +123,7 @@ class Task implements TaskInterface
         return \Onion\Framework\Promise\await($this->defer()->promise());
     }
 
-    public static function create(callable $fn, array $args = []): TaskInterface
+    public static function create(callable $fn, array $args = []): self
     {
         return new Task(new Fiber($fn), $args);
     }

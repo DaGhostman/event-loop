@@ -8,7 +8,7 @@ use function Onion\Framework\Loop\signal;
 
 class Dispatcher implements EventDispatcherInterface
 {
-    private $listenerProvider;
+    private ListenerProviderInterface $listenerProvider;
 
     public function __construct(ListenerProviderInterface $listenerProvider)
     {
@@ -18,7 +18,10 @@ class Dispatcher implements EventDispatcherInterface
     public function dispatch(object $event): object
     {
 
-        $listeners = (function ($event): \Generator {
+        $listeners = (/**
+         * @psalm-return \Generator<mixed, mixed, mixed, void>
+         */
+        function ($event): \Generator {
             yield from $this->listenerProvider->getListenersForEvent($event);
         })($event);
 

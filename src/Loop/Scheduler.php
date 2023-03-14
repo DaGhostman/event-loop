@@ -171,7 +171,7 @@ class Scheduler implements SchedulerInterface
         }
     }
 
-    protected function timerPoll(int $now)
+    protected function timerPoll(int $now): void
     {
         $first = array_key_first($this->timers);
         if ($first > $now) {

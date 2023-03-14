@@ -14,6 +14,11 @@ class AggregateProvider implements ListenerProviderInterface
         $this->providers = array_merge($this->providers, $provider);
     }
 
+    /**
+     * @return \Generator
+     *
+     * @psalm-return \Generator<mixed, mixed, mixed, void>
+     */
     public function getListenersForEvent(object $event): iterable
     {
 
