@@ -13,6 +13,7 @@ use function Onion\Framework\Loop\coroutine;
 class SocketTest extends TestCase
 {
     private $resource;
+    private $name;
 
     protected function setUp(): void
     {
