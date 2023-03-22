@@ -16,6 +16,7 @@ use Onion\Framework\Loop\Interfaces\{
 };
 use Onion\Framework\Loop\Scheduler;
 use Onion\Framework\Loop\Types\Operation;
+use RuntimeException;
 use Throwable;
 
 if (!function_exists(__NAMESPACE__ . '\read')) {
@@ -42,6 +43,8 @@ if (!function_exists(__NAMESPACE__ . '\read')) {
         ?Closure $fn = null,
         bool $blocking = true,
     ): mixed {
+        $fn = $fn ?? fn (ResourceInterface $socket): ResourceInterface => $socket;
+
         return $blocking ?
             signal(
                 fn (
@@ -50,7 +53,7 @@ if (!function_exists(__NAMESPACE__ . '\read')) {
                     SchedulerInterface $scheduler,
                 ) => $scheduler->onRead(
                     $socket,
-                    Task::create(fn () => $resume(($fn ?? fn () => null)($socket)))
+                    Task::create(fn (): mixed => $resume(($fn)($socket)))
                 )
             ) : scheduler()->onRead($socket, Task::create($fn, [$socket]));
     }
@@ -80,15 +83,23 @@ if (!function_exists(__NAMESPACE__ . '\write')) {
         ?Closure $fn = null,
         bool $blocking = true,
     ): mixed {
+        $fn = $fn ?? fn (ResourceInterface $resource): ResourceInterface => $resource;
+
         return $blocking ?
             signal(
                 fn (
+                    /**
+                     * @psalm-trace
+                     */
                     Closure $resume,
                     TaskInterface $task,
                     SchedulerInterface $scheduler,
                 ) => $scheduler->onWrite(
                     $socket,
-                    Task::create(fn () => $resume(($fn ?? fn () => null)($socket)))
+                    Task::create(
+                        fn (ResourceInterface $socket): mixed => $resume(($fn)($socket)),
+                        [$socket]
+                    )
                 )
             ) : scheduler()->onWrite($socket, Task::create($fn, [$socket]));
     }
@@ -107,13 +118,19 @@ if (!function_exists(__NAMESPACE__ . '\scheduler')) {
      */
     function scheduler(
         ?SchedulerInterface $instance = null,
-    ): SchedulerInterface|null {
+    ): SchedulerInterface {
         /** @var SchedulerInterface|null $scheduler */
         static $scheduler;
         if ($instance !== null) {
             $scheduler = $instance;
-        } else if (!$scheduler && class_exists(Scheduler::class, true)) {
+        } elseif (!$scheduler && class_exists(Scheduler::class, true)) {
             $scheduler = new Scheduler();
+        }
+
+        if ($scheduler === null) {
+            throw new RuntimeException(
+                "Unable to create default scheduler and a default one couldn't be created"
+            );
         }
 
         return $scheduler;
@@ -198,6 +215,7 @@ if (!function_exists(__NAMESPACE__ . '\with')) {
     function with(Closure $expr, ...$args): mixed
     {
         return signal(function (Closure $resume) use (&$expr, &$args): void {
+            $result = null;
             while (!($result = $expr($args))) {
                 tick();
             }
@@ -357,7 +375,7 @@ if (!function_exists(__NAMESPACE__ . '\sleep')) {
      */
     function sleep(float|int $timeout): void
     {
-        signal(fn (Closure $resume) => Timer::after(fn () => $resume(), (int) $timeout * 1000));
+        signal(fn (Closure $resume) => Timer::after(fn (): mixed => $resume(), (int) $timeout * 1000));
     }
 }
 
@@ -374,7 +392,7 @@ if (!function_exists(__NAMESPACE__ . '\delay')) {
      */
     function delay(float|int $timeout): void
     {
-        signal(fn (Closure $resume) => Timer::after(fn () => $resume(), (int) $timeout * 1000));
+        signal(fn (Closure $resume) => Timer::after(fn (): mixed => $resume(), (int) $timeout * 1000));
     }
 }
 
@@ -431,5 +449,28 @@ if (!function_exists(__NAMESPACE__ . '\repeat')) {
     function repeat(Closure $fn, int $interval): TimerInterface
     {
         return Timer::interval($fn, $interval);
+    }
+}
+
+if (!function_exists(__NAMESPACE__ . '\pipe')) {
+    function pipe(
+        ResourceInterface $source,
+        ResourceInterface $destination,
+        int $chunkSize = 65535,
+    ): void {
+        stream_set_read_buffer($source->getResource(), 0);
+        stream_set_write_buffer($destination->getResource(), 0);
+
+        scheduler()->onRead(
+            $source,
+            Task::create(function (ResourceInterface $source, ResourceInterface $destination) use ($chunkSize) {
+                scheduler()->onWrite(
+                    $destination,
+                    Task::create(function (ResourceInterface $destination, string $data) {
+                        $destination->write($data);
+                    }, [$destination, $source->read($chunkSize)])
+                );
+            }, [$source, $destination])
+        );
     }
 }

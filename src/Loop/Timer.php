@@ -3,14 +3,18 @@
 namespace Onion\Framework\Loop;
 
 use Closure;
+use Onion\Framework\Loop\Interfaces\SchedulerInterface;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
 use Onion\Framework\Loop\Interfaces\TimerInterface;
 use WeakReference;
 
+/**
+ * @psalm-consistent-constructor
+ */
 class Timer implements TimerInterface
 {
     private readonly WeakReference $task;
-    private function __construct(TaskInterface $task)
+    final private function __construct(TaskInterface $task)
     {
         $this->task = WeakReference::create($task);
     }
@@ -32,7 +36,8 @@ class Timer implements TimerInterface
                 if ($repeating) {
                     while (true) {
                         signal(
-                            fn ($resume, $task, $scheduler) => $scheduler->schedule(
+                            fn (Closure $resume, TaskInterface $task, SchedulerInterface $scheduler) =>
+                            $scheduler->schedule(
                                 Task::create($resume),
                                 $tick + $ms,
                             )

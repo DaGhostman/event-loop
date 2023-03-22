@@ -2,6 +2,7 @@
 
 namespace Onion\Framework\Loop;
 
+use Closure;
 use Onion\Framework\Loop\Descriptor;
 use Onion\Framework\Loop\Interfaces\{
     ResourceInterface,
@@ -55,7 +56,7 @@ class Socket extends Descriptor implements SocketInterface
         };
 
         return signal(
-            function (callable $resume, TaskInterface $task, SchedulerInterface $scheduler) use ($timeout, $waitFn) {
+            function (Closure $resume, TaskInterface $task, SchedulerInterface $scheduler) use ($timeout, $waitFn) {
                 $scheduler->schedule(Task::create($waitFn, [$task, $scheduler, $this, $timeout]));
             }
         );

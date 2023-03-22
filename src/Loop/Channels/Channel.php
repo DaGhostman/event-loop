@@ -56,7 +56,7 @@ class Channel implements ChannelInterface
 
     public function send(mixed ...$data): bool
     {
-        return signal(function ($resume) use ($data) {
+        return signal(function (Closure $resume) use ($data) {
             if (!$this->open) {
                 $resume(false);
             }

@@ -12,6 +12,10 @@ use Throwable;
 class Scheduler implements SchedulerInterface
 {
     private SplQueue $queue;
+    /**
+     *
+     * @var array<int, TaskInterface[]>
+     */
     private array $timers = [];
     private bool $started = false;
 

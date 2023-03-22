@@ -11,7 +11,7 @@ use function Onion\Framework\Loop\signal;
 
 class Descriptor implements ResourceInterface
 {
-    /** @var resource */
+    /** @var mixed */
     private mixed $resource;
     private readonly int $resourceId;
 

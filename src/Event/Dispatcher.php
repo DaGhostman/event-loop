@@ -18,15 +18,16 @@ class Dispatcher implements EventDispatcherInterface
     public function dispatch(object $event): object
     {
 
-        $listeners = (/**
-         * @psalm-return \Generator<mixed, mixed, mixed, void>
-         */
-        function ($event): \Generator {
-            yield from $this->listenerProvider->getListenersForEvent($event);
-        })($event);
+        $listeners = (
+            /**
+             * @psalm-return \Generator<mixed, mixed, mixed, void>
+             */
+            function (object $event): \Generator {
+                yield from $this->listenerProvider->getListenersForEvent($event);
+            })($event);
 
 
-        $next = function ($event, $iterator) use (&$next): object {
+        $next = function (object $event, \Generator $iterator) use (&$next): object {
             return signal(function (\Closure $resume) use ($event, &$next, $iterator) {
                 if ($event instanceof StoppableEventInterface && $event->isPropagationStopped()) {
                     $resume($event);
