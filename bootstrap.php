@@ -46,7 +46,7 @@ if (!defined('EVENT_LOOP_STREAM_IDLE_TIMEOUT')) {
 }
 
 if (EVENT_LOOP_AUTOSTART) {
-    register_shutdown_function(scheduler()->start(...));
+    register_shutdown_function(fn () => scheduler()->start());
 }
 
 if (EVENT_LOOP_HANDLE_SIGNALS) {
