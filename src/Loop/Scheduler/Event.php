@@ -109,8 +109,8 @@ class Event implements SchedulerInterface
             return;
         }
 
-        $this->base->loop();
         $this->started = true;
+        $this->base->loop();
     }
 
     public function stop(): void {

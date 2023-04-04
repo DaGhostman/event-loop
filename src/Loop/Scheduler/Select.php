@@ -8,7 +8,6 @@ use Onion\Framework\Loop\Interfaces\{ResourceInterface, SchedulerInterface, Task
 use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Task;
 use SplQueue;
-use SplPriorityQueue;
 use Throwable;
 
 class Select implements SchedulerInterface
@@ -20,6 +19,7 @@ class Select implements SchedulerInterface
      */
     private array $timers = [];
     private bool $started = false;
+    private bool $wasRunning = false;
 
     /**
      * Summary of signals
@@ -57,7 +57,10 @@ class Select implements SchedulerInterface
             return;
         }
 
-        $this->started = true;
+        if (!$this->wasRunning) {
+            $this->started = true;
+            $this->wasRunning = true;
+        }
 
         while ($this->started) {
             $this->poll();

@@ -110,8 +110,8 @@ class Ev implements SchedulerInterface
             return;
         }
 
-        $this->loop->run();
         $this->started = true;
+        $this->loop->run();
     }
 
     public function stop(): void

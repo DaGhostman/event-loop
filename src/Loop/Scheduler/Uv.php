@@ -66,22 +66,27 @@ class Uv implements SchedulerInterface
 
     public function onRead(ResourceInterface $resource, TaskInterface $task): void
     {
-        $poll = uv_poll_init($this->loop, $resource->getResource());
-        uv_poll_start($poll, \UV::READABLE, function($poll, $stat, $ev) use ($task) {
-            $this->schedule($task);
-            uv_poll_stop($poll);
-        });
+        uv_poll_start(
+            uv_poll_init($this->loop, $resource->getResource()),
+            \UV::READABLE,
+            function($poll, $stat, $ev) use ($task) {
+                uv_poll_stop($poll);
+                $this->schedule($task);
+            }
+        );
     }
 
     public function onWrite(ResourceInterface $resource, TaskInterface $task): void
     {
-        $poll = uv_poll_init($this->loop, $resource->getResource());
-        uv_poll_start($poll, \UV::WRITABLE, function($poll, $stat, $ev) use ($task) {
-            uv_close($poll);
-            uv_poll_stop($poll);
+        uv_poll_start(
+            uv_poll_init($this->loop, $resource->getResource()),
+            \UV::WRITABLE,
+            function($poll, $stat, $ev) use ($task) {
+                uv_poll_stop($poll);
 
-            $this->schedule($task);
-        });
+                $this->schedule($task);
+            }
+        );
     }
 
     public function start(): void
@@ -90,8 +95,8 @@ class Uv implements SchedulerInterface
             return;
         }
 
-        uv_run($this->loop);
         $this->running = true;
+        uv_run($this->loop);
     }
 
     public function stop(): void
