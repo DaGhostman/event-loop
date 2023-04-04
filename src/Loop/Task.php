@@ -120,7 +120,11 @@ class Task implements TaskInterface
 
     public function sync(): mixed
     {
-        return \Onion\Framework\Promise\await($this->defer()->promise());
+        while (!$this->coroutine->isTerminated()) {
+            suspend();
+        }
+
+        return $this->coroutine->getReturn();
     }
 
     public static function create(callable $fn, array $args = []): self
