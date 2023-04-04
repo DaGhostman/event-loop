@@ -179,6 +179,8 @@ if (!function_exists(__NAMESPACE__ . '\signal')) {
      *
      * @throws FiberError
      * @throws Throwable
+     *
+     * @internal
      */
     function signal(Closure $fn): mixed
     {
@@ -225,7 +227,7 @@ if (!function_exists(__NAMESPACE__ . '\with')) {
         return signal(function (Closure $resume) use (&$expr, &$args): void {
             $result = null;
             while (!($result = $expr($args))) {
-                tick();
+                suspend();
             }
 
             $resume($result);
@@ -235,13 +237,24 @@ if (!function_exists(__NAMESPACE__ . '\with')) {
 
 if (!function_exists(__NAMESPACE__ . '\tick')) {
     /**
+     * @deprecated Use `suspend` instead
+     * @see \Onion\Framework\Loop\suspend()
+     */
+    function tick(): void
+    {
+        suspend();
+    }
+}
+
+if (!function_exists(__NAMESPACE__ . '\suspend')) {
+    /**
      * Enables the cooperative behavior nature of the event loop, i.e
      * handles control back to the event loop to continue executing
      * other tasks and pause the current one.
      *
      * @return void
      */
-    function tick(): void
+    function suspend(): void
     {
         signal(fn (Closure $resume): mixed => $resume());
     }
