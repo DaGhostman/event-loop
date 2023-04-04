@@ -25,7 +25,7 @@ if (!defined('EVENT_LOOP_HANDLE_SIGNALS')) {
      *
      * @var bool `true` to enable, `false` otherwise
      */
-    define('EVENT_LOOP_HANDLE_SIGNALS', true);
+    define('EVENT_LOOP_HANDLE_SIGNALS', false);
 }
 
 if (!defined('EVENT_LOOP_STREAM_IDLE_TIMEOUT')) {
