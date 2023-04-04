@@ -2,14 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Onion\Framework\Loop;
+namespace Onion\Framework\Loop\Scheduler;
 
 use Onion\Framework\Loop\Interfaces\{ResourceInterface, SchedulerInterface, TaskInterface};
+use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Task;
 use SplQueue;
 use Throwable;
 
-class Scheduler implements SchedulerInterface
+class Select implements SchedulerInterface
 {
     private SplQueue $queue;
     /**

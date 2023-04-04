@@ -123,8 +123,16 @@ if (!function_exists(__NAMESPACE__ . '\scheduler')) {
         static $scheduler;
         if ($instance !== null) {
             $scheduler = $instance;
-        } elseif (!$scheduler && class_exists(Scheduler::class, true)) {
-            $scheduler = new Scheduler();
+        } elseif (!$scheduler) {
+            if (extension_loaded('uv')) {
+                $scheduler = new Scheduler\Uv();
+            } elseif (extension_loaded('ev')) {
+                $scheduler = new Scheduler\Ev();
+            } elseif (extension_loaded('event')) {
+                $scheduler = new Scheduler\Event();
+            } else {
+                $scheduler = new Scheduler\Select();
+            }
         }
 
         if ($scheduler === null) {
