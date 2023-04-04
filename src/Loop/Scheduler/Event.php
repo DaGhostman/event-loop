@@ -9,111 +9,135 @@ use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Task;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use EventConfig;
-use SplQueue;
 
 
 class Event implements SchedulerInterface
 {
-    private readonly EventBase $base;
-    private readonly SplQueue $tasks;
+    private EventBase $base;
+    private array $tasks = [];
+
+    private bool $started = false;
+
     public function __construct()
     {
         $config = new EventConfig();
         $config->requireFeatures(EventConfig::FEATURE_FDS);
-		$config->avoidMethod("select");
-        $config->requireFeatures(EventConfig::FEATURE_ET);
-        // $config->requireFeatures(EventConfig::FEATURE_O1);
+        $config->requireFeatures(EventConfig::FEATURE_O1);
 
         $this->base = new EventBase($config);
-        $this->tasks = new SplQueue();
     }
-	/**
-	 * Schedule a task for execution either during at the earliest tick
-	 * or at a given time if the $at parameter is provided.
-	 *
-	 * @param \Onion\Framework\Loop\Interfaces\TaskInterface $task The task to put on the queue
-	 * @param int|null $at Time at which to execute the given task (in
-	 *                     microseconds)
-	 * @return void
-	 */
-	public function schedule(TaskInterface $task, int $at = null): void
+
+
+    public function schedule(TaskInterface $task, int $at = null): void
     {
-		if ($this->base->gotStop()) {
-			return;
-		}
+        if ($this->base->gotStop()) {
+            return;
+        }
 
-        $event = new TaskEvent($this->base, -1, TaskEvent::TIMEOUT, function ($fd, $what, TaskInterface $task) {
-			$this->tasks->dequeue()->free();
-			if ($task->isKilled()) {
-				return;
-			}
-            $result = $task->run();
+        $key = spl_object_id($task);
 
-            if ($result instanceof Signal) {
-                $this->schedule(Task::create($result, [$task, $this]));
-				return;
-            }
+        ($event = new TaskEvent(
+            $this->base,
+            -1,
+            TaskEvent::TIMEOUT,
+            function ($fd, $what, TaskInterface $task) use ($key) {
+                $this->tasks[$key]->free();
+                unset($this->tasks[$key]);
 
-			if (!$task->isFinished()) {
-				$this->schedule($task);
-			}
+                if ($task->isKilled()) {
+                    return;
+                }
+                $result = $task->run();
 
-        }, $task);
-        $event->add($at !== null ? ($at - (hrtime(true) / 1e+3)) / 1e+6 : 0);
-        $this->tasks->enqueue($event);
-	}
+                if ($result instanceof Signal) {
+                    $this->schedule(Task::create($result, [$task, $this]));
+                    return;
+                }
 
-	/**
-	 * Schedules a task to be executed as soon as there is any data
-	 * available to read from the given $resource.
-	 *
-	 * @param \Onion\Framework\Loop\Interfaces\ResourceInterface $resource The resource to await
-	 * @param \Onion\Framework\Loop\Interfaces\TaskInterface $task The task to execute when data is available
-	 * @return void
-	 */
-	public function onRead(ResourceInterface $resource, TaskInterface $task): void
-	{
-		$event = new TaskEvent($this->base, $resource->getResource(), TaskEvent::READ, function ($fd, $what, TaskInterface $task) {
-			$this->tasks->dequeue()->free();
-			$this->schedule($task);
-		}, $task);
-		$event->add();
-		$this->tasks->enqueue($event);
-	}
+                if (!$task->isFinished()) {
+                    $this->schedule($task);
+                }
+            },
+            $task,
+        ))->add($at !== null ? ($at - (hrtime(true) / 1e+3)) / 1e+6 : 0);
 
-	/**
-	 * Schedules a task to be executed as soon as the $resource is ready
-	 * to receive data
-	 *
-	 * @param \Onion\Framework\Loop\Interfaces\ResourceInterface $resource The resource to await
-	 * @param \Onion\Framework\Loop\Interfaces\TaskInterface $task The task to execute when data can be
-	 *                                                             transmitted
-	 * @return void
-	 */
-	public function onWrite(ResourceInterface $resource, TaskInterface $task): void
-	{
-		$event = new TaskEvent($this->base, $resource->getResource(), TaskEvent::WRITE, function ($fd, $what, TaskInterface $task) {
-			$this->tasks->dequeue()->free();
-			$this->schedule($task);
-		}, $task);
-		$event->add();
-		$this->tasks->enqueue($event);
-	}
+        $this->tasks[spl_object_id($task)] = $event;
+    }
 
-	/**
-	 * Starts the event loop execution cycle. All code written after
-	 * a call to this method will be executed as soon as there are no
-	 * scheduled tasks, timers and watched resources
-	 * @return void
-	 */
-	public function start(): void {
-		$this->base->loop();
-	}
+    public function onRead(ResourceInterface $resource, TaskInterface $task): void
+    {
+        $key = spl_object_id($task);
 
-	/**
-	 * Stops the event loop after completing the current tick
-	 */
-	public function stop(): void {
-		$this->base->stop();
-	}
+        ($event = new TaskEvent(
+            $this->base,
+            $resource->getResource(),
+            TaskEvent::READ,
+            function ($fd, $what, TaskInterface $task) use ($key) {
+                $this->tasks[$key]->free();
+                unset($this->tasks[$key]);
+
+                $this->schedule($task);
+            },
+            $task,
+        ))->add();
+
+        $this->tasks[$key] = $event;
+    }
+
+    public function onWrite(ResourceInterface $resource, TaskInterface $task): void
+    {
+        $key = spl_object_id($task);
+
+        ($event = new TaskEvent(
+            $this->base,
+            $resource->getResource(),
+            TaskEvent::WRITE,
+            function ($fd, $what, TaskInterface $task) use ($key) {
+                $this->tasks[$key]->free();
+                unset($this->tasks[$key]);
+
+                $this->schedule($task);
+            },
+            $task,
+        ))->add();
+
+        $this->tasks[$key] = $event;
+    }
+
+    public function start(): void {
+        if ($this->started) {
+            return;
+        }
+
+        $this->base->loop();
+        $this->started = true;
+    }
+
+    public function stop(): void {
+        if (!$this->started) {
+            return;
+        }
+
+        $this->base->stop();
+    }
+
+    public function signal(int $signal, TaskInterface $task, int $priority = 0): void
+    {
+        $key = spl_object_id($task);
+
+        ($event = new TaskEvent(
+            $this->base,
+            $signal,
+            TaskEvent::SIGNAL | TaskEvent::PERSIST,
+            function ($fd, $what, TaskInterface $task) use ($key) {
+                $this->tasks[$key]->free();
+                unset($this->tasks[$key]);
+
+                $this->schedule($task);
+            },
+            $task,
+        ))->add();
+
+        $this->tasks[$key] = $event;
+    }
 }

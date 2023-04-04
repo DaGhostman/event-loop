@@ -8,6 +8,7 @@ use Onion\Framework\Loop\Interfaces\{ResourceInterface, SchedulerInterface, Task
 use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Task;
 use SplQueue;
+use SplPriorityQueue;
 use Throwable;
 
 class Select implements SchedulerInterface
@@ -20,6 +21,12 @@ class Select implements SchedulerInterface
     private array $timers = [];
     private bool $started = false;
 
+    /**
+     * Summary of signals
+     * @var array<int, \SplPriorityQueue<TaskInterface>>
+     */
+    private array $signals;
+
     // resourceID => [socket, tasks]
     protected array $reads = [];
     protected array $writes = [];
@@ -27,6 +34,7 @@ class Select implements SchedulerInterface
     public function __construct()
     {
         $this->queue = new SplQueue();
+        $this->signals = [];
     }
 
     public function schedule(TaskInterface $task, int $at = null): void
@@ -218,5 +226,28 @@ class Select implements SchedulerInterface
         ) {
             $this->started = false;
         }
+    }
+
+    private function handleSignal(int $signal)
+    {
+        while (!$this->signals[$signal]->isEmpty()) {
+            $this->schedule($this->signals[$signal]->dequeue());
+        }
+    }
+
+    public function signal(int $signal, TaskInterface $task): void
+    {
+        if (!isset($this->signals[$signal])) {
+            $this->signals[$signal] = new SplQueue();
+
+            if (strtolower(PHP_OS_FAMILY) == 'windows') {
+                sapi_windows_set_ctrl_handler($this->handleSignal(...), true);
+            } elseif (extension_loaded('pcntl')) {
+                pcntl_async_signals(true);
+                pcntl_signal($signal, $this->handleSignal(...));
+            }
+        }
+
+        $this->signals[$signal]->enqueue($task);
     }
 }

@@ -12,31 +12,25 @@ class Ev implements SchedulerInterface
 {
     private readonly mixed $loop;
 
-    private readonly \SplQueue $tasks;
+    private array $tasks = [];
+
+    private bool $started = false;
 
     public function __construct()
     {
         $this->loop = new \EvLoop();
-        $this->tasks = new \SplQueue();
     }
 
-	/**
-	 * Schedule a task for execution either during at the earliest tick
-	 * or at a given time if the $at parameter is provided.
-	 *
-	 * @param \Onion\Framework\Loop\Interfaces\TaskInterface $task The task to put on the queue
-	 * @param int|null $at Time at which to execute the given task (in
-	 *                     microseconds)
-	 * @return void
-	 */
-	public function schedule(TaskInterface $task, int $at = null): void
+    public function schedule(TaskInterface $task, int $at = null): void
     {
+        $key = spl_object_id($task);
+
         if ($at !== null) {
-            $this->tasks->enqueue($this->loop->timer(
+            $this->tasks[$key] = $this->loop->timer(
                 ($at - (hrtime(true) / 1e3)) / 1e6,
                 0,
-                function ($watcher) {
-                    $this->tasks->dequeue();
+                function ($watcher) use ($key) {
+                    unset($this->tasks[$key]);
 
                     if ($watcher->data->isKilled()) {
                         return;
@@ -53,11 +47,12 @@ class Ev implements SchedulerInterface
                     }
                 },
                 $task
-            ));
+            );
         } else {
-            $this->tasks->enqueue($this->loop->idle(
-                function ($watcher) {
-                    $this->tasks->dequeue();
+            $this->tasks[$key] = $this->loop->idle(
+                function ($watcher) use ($key) {
+                    unset($this->tasks[$key]);
+
                     if ($watcher->data->isKilled()) {
                         return;
                     }
@@ -73,71 +68,73 @@ class Ev implements SchedulerInterface
                     }
                 },
                 $task
-            ));
+            );
         }
-	}
+    }
 
-	/**
-	 * Schedules a task to be executed as soon as there is any data
-	 * available to read from the given $resource.
-	 *
-	 * @param \Onion\Framework\Loop\Interfaces\ResourceInterface $resource The resource to await
-	 * @param \Onion\Framework\Loop\Interfaces\TaskInterface $task The task to execute when data is available
-	 * @return void
-	 */
-	public function onRead(ResourceInterface $resource, TaskInterface $task): void
+    public function onRead(ResourceInterface $resource, TaskInterface $task): void
     {
-        $this->tasks->enqueue($this->loop->io(
+        $key = spl_object_id($task);
+
+        $this->tasks[$key] = $this->loop->io(
             $resource->getResource(),
             \Ev::READ,
-            function ($watcher) {
-                $this->tasks->dequeue();
+            function ($watcher) use ($key) {
+                unset($this->tasks[$key]);
 
                 $this->schedule($watcher->data);
             },
             $task
-        ));
-	}
+        );
+    }
 
-	/**
-	 * Schedules a task to be executed as soon as the $resource is ready
-	 * to receive data
-	 *
-	 * @param \Onion\Framework\Loop\Interfaces\ResourceInterface $resource The resource to await
-	 * @param \Onion\Framework\Loop\Interfaces\TaskInterface $task The task to execute when data can be
-	 *                                                             transmitted
-	 * @return void
-	 */
-	public function onWrite(ResourceInterface $resource, TaskInterface $task): void
+    public function onWrite(ResourceInterface $resource, TaskInterface $task): void
     {
-        $this->tasks->enqueue($this->loop->io(
+        $key = spl_object_id($task);
+
+        $this->tasks[$key] = $this->loop->io(
             $resource->getResource(),
             \Ev::WRITE,
-            function ($watcher) {
-                $this->tasks->dequeue();
+            function ($watcher) use ($key) {
+                unset($this->tasks[$key]);
 
                 $this->schedule($watcher->data);
             },
             $task
-        ));
-	}
+        );
+    }
 
-	/**
-	 * Starts the event loop execution cycle. All code written after
-	 * a call to this method will be executed as soon as there are no
-	 * scheduled tasks, timers and watched resources
-	 * @return void
-	 */
-	public function start(): void
+    public function start(): void
     {
+        if ($this->started) {
+            return;
+        }
+
         $this->loop->run();
-	}
+        $this->started = true;
+    }
 
-	/**
-	 * Stops the event loop after completing the current tick
-	 */
-	public function stop(): void
+    public function stop(): void
     {
-        $this->loop->stop(Ev::BREAK_ALL);
-	}
+        if (!$this->started) {
+            return;
+        }
+
+        $this->loop->stop();
+    }
+
+    public function signal(int $signal, TaskInterface $task): void
+    {
+        $key = spl_object_id($task);
+
+        $this->tasks[$key] = $this->loop->signal(
+            $signal,
+            function ($watcher) use ($key) {
+                unset($this->tasks[$key]);
+
+                $this->schedule($watcher->data);
+            },
+            $task,
+        );
+    }
 }
