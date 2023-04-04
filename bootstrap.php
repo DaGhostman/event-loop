@@ -25,7 +25,7 @@ if (!defined('EVENT_LOOP_HANDLE_SIGNALS')) {
      *
      * @var bool `true` to enable, `false` otherwise
      */
-    define('EVENT_LOOP_HANDLE_SIGNALS', false);
+    define('EVENT_LOOP_HANDLE_SIGNALS', true);
 }
 
 if (!defined('EVENT_LOOP_STREAM_IDLE_TIMEOUT')) {
@@ -50,42 +50,21 @@ if (EVENT_LOOP_AUTOSTART) {
 }
 
 if (EVENT_LOOP_HANDLE_SIGNALS) {
-    $triggered = false;
-    $signalHandler = function (int $event) use (&$triggered) {
-        if (
-            (defined('PHP_WINDOWS_EVENT_CTRL_C') &&
-                ($event === constant('PHP_WINDOWS_EVENT_CTRL_C') || $event === constant('PHP_WINDOWS_EVENT_CTRL_BREAK'))
-            ) ||
-            (defined('SIGINT') && $event === constant('SIGINT'))
-        ) {
-            if ($triggered) {
-                fwrite(STDERR, "\nForcing termination by user request.\n");
-                exit(match (strtolower(PHP_OS_FAMILY)) {
-                    'windows' => 0,
-                    default => 130,
-                });
-            }
-            $triggered = true;
-
-            fwrite(STDOUT, "\nAttempting graceful termination by user request, repeat to force.\n");
-            coroutine(
-                function () {
-                    scheduler()->stop();
-                    tick();
-
-                    exit(match (strtolower(PHP_OS_FAMILY)) {
-                        'windows' => 0,
-                        default => 130,
-                    });
-                }
-            );
+    if (!defined('CTRL_C')) {
+        if (defined('PHP_WINDOWS_EVENT_CTRL_C')) {
+            define('CTRL_C', PHP_WINDOWS_EVENT_CTRL_C);
+        } else if (defined('SIGINT')) {
+            define('CTRL_C', SIGINT);
+        } else {
+            define('CTRL_C', 0);
         }
-    };
-
-    if (strtolower(PHP_OS_FAMILY) == 'windows') {
-        sapi_windows_set_ctrl_handler($signalHandler, true);
-    } elseif (extension_loaded('pcntl')) {
-        pcntl_async_signals(true);
-        pcntl_signal(SIGINT, $signalHandler);
     }
+
+    scheduler()->signal(CTRL_C, \Onion\Framework\Loop\Task::create(function () {
+        fwrite(STDOUT, "\nAttempting graceful termination by user request.\n");
+
+        scheduler()->stop();
+
+        exit(128 + CTRL_C);
+    }));
 }
