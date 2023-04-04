@@ -23,7 +23,7 @@ class Select implements SchedulerInterface
 
     /**
      * Summary of signals
-     * @var array<int, \SplPriorityQueue<TaskInterface>>
+     * @var array<int, \SplQueue<TaskInterface>>
      */
     private array $signals;
 
