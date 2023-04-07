@@ -66,6 +66,10 @@ class Uv implements SchedulerInterface
 
     public function onRead(ResourceInterface $resource, TaskInterface $task): void
     {
+        if ($resource->eof()) {
+            return;
+        }
+
         uv_poll_start(
             uv_poll_init($this->loop, $resource->getResource()),
             \UV::READABLE,
@@ -78,6 +82,10 @@ class Uv implements SchedulerInterface
 
     public function onWrite(ResourceInterface $resource, TaskInterface $task): void
     {
+        if ($resource->eof()) {
+            return;
+        }
+
         uv_poll_start(
             uv_poll_init($this->loop, $resource->getResource()),
             \UV::WRITABLE,
@@ -114,5 +122,10 @@ class Uv implements SchedulerInterface
             $this->schedule($task);
             uv_close($handle);
         }, $signal);
+    }
+
+    public function work(TaskInterface $task): void
+    {
+        $this->schedule($task);
     }
 }

@@ -66,6 +66,10 @@ class Event implements SchedulerInterface
 
     public function onRead(ResourceInterface $resource, TaskInterface $task): void
     {
+        if ($resource->eof()) {
+            return;
+        }
+
         $key = spl_object_id($task);
 
         ($event = new TaskEvent(
@@ -86,6 +90,10 @@ class Event implements SchedulerInterface
 
     public function onWrite(ResourceInterface $resource, TaskInterface $task): void
     {
+        if ($resource->eof()) {
+            return;
+        }
+
         $key = spl_object_id($task);
 
         ($event = new TaskEvent(

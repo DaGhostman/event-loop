@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 namespace Onion\Framework\Loop\Scheduler;
+use EvLoop;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Loop\Interfaces\SchedulerInterface;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
@@ -10,7 +11,7 @@ use Onion\Framework\Loop\Task;
 
 class Ev implements SchedulerInterface
 {
-    private readonly mixed $loop;
+    private readonly EvLoop $loop;
 
     private array $tasks = [];
 
@@ -18,7 +19,7 @@ class Ev implements SchedulerInterface
 
     public function __construct()
     {
-        $this->loop = new \EvLoop();
+        $this->loop = new EvLoop();
     }
 
     public function schedule(TaskInterface $task, int $at = null): void
@@ -74,6 +75,10 @@ class Ev implements SchedulerInterface
 
     public function onRead(ResourceInterface $resource, TaskInterface $task): void
     {
+        if ($resource->eof()) {
+            return;
+        }
+
         $key = spl_object_id($task);
 
         $this->tasks[$key] = $this->loop->io(
@@ -90,6 +95,10 @@ class Ev implements SchedulerInterface
 
     public function onWrite(ResourceInterface $resource, TaskInterface $task): void
     {
+        if ($resource->eof()) {
+            return;
+        }
+
         $key = spl_object_id($task);
 
         $this->tasks[$key] = $this->loop->io(
