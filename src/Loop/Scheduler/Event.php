@@ -9,6 +9,8 @@ use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Task;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use EventConfig;
+use Onion\Framework\Loop\Scheduler\Traits\SchedulerErrorHandler;
+use Throwable;
 
 
 class Event implements SchedulerInterface
@@ -17,6 +19,8 @@ class Event implements SchedulerInterface
     private array $tasks = [];
 
     private bool $started = false;
+
+    use SchedulerErrorHandler;
 
     public function __construct()
     {
@@ -47,11 +51,22 @@ class Event implements SchedulerInterface
                 if ($task->isKilled()) {
                     return;
                 }
-                $result = $task->run();
 
-                if ($result instanceof Signal) {
-                    $this->schedule(Task::create($result, [$task, $this]));
-                    return;
+                try {
+                    $result = $task->run();
+
+                    if ($result instanceof Signal) {
+                        try {
+                            $this->schedule(Task::create($result, [$task, $this]));
+                        } catch (Throwable $ex) {
+                            if (!$task->throw($ex)) {
+                                $this->triggerErrorHandlers($ex);
+                            }
+                        }
+                        return;
+                    }
+                } catch (Throwable $ex) {
+                    $this->triggerErrorHandlers($ex);
                 }
 
                 if (!$task->isFinished()) {

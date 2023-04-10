@@ -6,8 +6,10 @@ use EvLoop;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Loop\Interfaces\SchedulerInterface;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
+use Onion\Framework\Loop\Scheduler\Traits\SchedulerErrorHandler;
 use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Task;
+use Throwable;
 
 class Ev implements SchedulerInterface
 {
@@ -16,6 +18,8 @@ class Ev implements SchedulerInterface
     private array $tasks = [];
 
     private bool $started = false;
+
+    use SchedulerErrorHandler;
 
     public function __construct()
     {
@@ -36,11 +40,22 @@ class Ev implements SchedulerInterface
                     if ($watcher->data->isKilled()) {
                         return;
                     }
-                    $result = $watcher->data->run();
 
-                    if ($result instanceof Signal) {
-                        $this->schedule(Task::create($result, [&$watcher->data, $this]));
-                        return;
+                    try {
+                        $result = $watcher->data->run();
+
+                        if ($result instanceof Signal) {
+                            try {
+                                $this->schedule(Task::create($result, [&$watcher->data, $this]));
+                            } catch (Throwable $ex) {
+                                if (!$watcher->data->throw($ex)) {
+                                    $this->triggerErrorHandlers($ex);
+                                }
+                            }
+                            return;
+                        }
+                    } catch (Throwable $e) {
+                        $this->triggerErrorHandlers($e);
                     }
 
                     if (!$watcher->data->isFinished()) {

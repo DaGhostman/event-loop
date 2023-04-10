@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Onion\Framework\Loop\Scheduler;
 
 use Onion\Framework\Loop\Interfaces\{ResourceInterface, SchedulerInterface, TaskInterface};
+use Onion\Framework\Loop\Scheduler\Traits\SchedulerErrorHandler;
 use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Task;
 use SplQueue;
@@ -30,6 +31,8 @@ class Select implements SchedulerInterface
     // resourceID => [socket, tasks]
     protected array $reads = [];
     protected array $writes = [];
+
+    use SchedulerErrorHandler;
 
     public function __construct()
     {
@@ -118,16 +121,16 @@ class Select implements SchedulerInterface
                         continue;
                     } catch (Throwable $ex) {
                         if (!$task->throw($ex)) {
-                            throw $ex;
+                            $this->triggerErrorHandlers($ex);
                         }
                     }
                 }
             } catch (Throwable $ex) {
                 if (!$task->throw($ex)) {
-                    throw $ex;
+                    $this->triggerErrorHandlers($ex);
                 }
-
                 $this->schedule($task);
+                continue;
             }
 
             if (!$task->isFinished()) {

@@ -5,13 +5,17 @@ namespace Onion\Framework\Loop\Scheduler;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Loop\Interfaces\SchedulerInterface;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
+use Onion\Framework\Loop\Scheduler\Traits\SchedulerErrorHandler;
 use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Task;
+use Throwable;
 
 class Uv implements SchedulerInterface
 {
     private readonly mixed $loop;
     private bool $running = false;
+
+    use SchedulerErrorHandler;
 
     public function __construct()
     {
@@ -27,11 +31,22 @@ class Uv implements SchedulerInterface
                 if ($task->isKilled()) {
                     return;
                 }
-                $result = $task->run();
 
-                if ($result instanceof Signal) {
-                    $this->schedule(Task::create($result, [$task, $this]));
-                    return;
+                try {
+                    $result = $task->run();
+
+                    if ($result instanceof Signal) {
+                        try {
+                            $this->schedule(Task::create($result, [$task, $this]));
+                        } catch (Throwable $ex) {
+                            if (!$task->throw($ex)) {
+                                $this->triggerErrorHandlers($ex);
+                            }
+                        }
+                        return;
+                    }
+                } catch (Throwable $e) {
+                    $this->triggerErrorHandlers($e);
                 }
 
                 if (!$task->isFinished()) {
