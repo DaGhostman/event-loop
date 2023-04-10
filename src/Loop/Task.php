@@ -4,6 +4,7 @@ namespace Onion\Framework\Loop;
 
 use Closure;
 use Fiber;
+use Onion\Framework\Loop\Debug\TraceableTask;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
 use Onion\Framework\Promise\Deferred;
 use Onion\Framework\Promise\Interfaces\DeferredInterface;
@@ -102,7 +103,9 @@ class Task implements TaskInterface
     {
         if (!isset($this->deferred)) {
             if ($this->coroutine->isTerminated()) {
-                throw new \LogicException('Unable to create a promise for completed task');
+                throw new \LogicException(
+                    'Unable to create a promise for completed task'
+                );
             }
 
             $this->deferred = new Deferred();
@@ -129,6 +132,7 @@ class Task implements TaskInterface
 
     public static function create(callable $fn, array $args = []): self
     {
-        return new Task(new Fiber($fn), $args);
+        return EVENT_LOOP_TRACE_TASKS ?
+            new TraceableTask(new Fiber($fn), $args) : new Task(new Fiber($fn), $args);
     }
 }

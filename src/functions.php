@@ -8,6 +8,7 @@ use Closure;
 use Fiber;
 use FiberError;
 use Onion\Framework\Loop\Channels\Channel;
+use Onion\Framework\Loop\Debug\TraceableScheduler;
 use Onion\Framework\Loop\Interfaces\{
     ResourceInterface,
     SchedulerInterface,
@@ -133,6 +134,10 @@ if (!function_exists(__NAMESPACE__ . '\scheduler')) {
             } else {
                 $scheduler = new Scheduler\Select();
             }
+
+            if (EVENT_LOOP_TRACE_TASKS) {
+                $scheduler = new TraceableScheduler($scheduler);
+            }
         }
 
         if ($scheduler === null) {
@@ -140,6 +145,8 @@ if (!function_exists(__NAMESPACE__ . '\scheduler')) {
                 "Unable to create default scheduler and a default one couldn't be created"
             );
         }
+
+
 
         return $scheduler;
     }
@@ -192,6 +199,7 @@ if (!function_exists(__NAMESPACE__ . '\signal')) {
 
             return $result;
         }
+
         return Fiber::suspend(new Signal(function (TaskInterface $task, SchedulerInterface $scheduler,) use ($fn) {
             $task->suspend();
 

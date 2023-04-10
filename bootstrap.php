@@ -2,11 +2,7 @@
 
 declare(strict_types=1);
 
-use function Onion\Framework\Loop\{
-    coroutine,
-    scheduler,
-    tick
-};
+use function Onion\Framework\Loop\{scheduler};
 
 if (!defined('EVENT_LOOP_AUTOSTART')) {
     /**
@@ -43,6 +39,24 @@ if (!defined('EVENT_LOOP_STREAM_IDLE_TIMEOUT')) {
      * @var int timeout in microseconds.
      */
     define('EVENT_LOOP_STREAM_IDLE_TIMEOUT', 1_000_000);
+}
+
+if (!defined('EVENT_LOOP_TRACE_TASKS')) {
+    /**
+     * (Experimental) Enable tracing of tasks, this would allow
+     * more accurate stack traces that should ignore the internal
+     * components of the event loop.
+     *
+     * Note that this functionality is experimental and may not
+     * work 100% as expected or add some performance cost as it
+     * heavily relies on `debug_backtrace`.
+     */
+    define('EVENT_LOOP_TRACE_TASKS', filter_var(
+        getenv('TRACE_TASKS') ?: '1', // Handle undefined env var as true
+        FILTER_VALIDATE_BOOLEAN,
+        ['flags' => FILTER_NULL_ON_FAILURE]
+    // in case of invalid value, fallback to false as it is enabled by default
+    ) ?? false);
 }
 
 if (EVENT_LOOP_AUTOSTART) {
