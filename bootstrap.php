@@ -82,3 +82,17 @@ if (EVENT_LOOP_HANDLE_SIGNALS) {
         exit(128 + CTRL_C);
     }));
 }
+
+if (function_exists('uv_loop_init') && !function_exists('uv_loop_new')) {
+    /**
+     * Handle possible removal of `uv_loop_new` in future versions of
+     * `symplely/uv-ffi` by providing a fallback to `uv_loop_init`
+     * whilst maintaining backwards compatibility with the pecl `uv`
+     * extension.
+     */
+
+    function uv_loop_new(): mixed
+    {
+        return uv_loop_init();
+    }
+}
