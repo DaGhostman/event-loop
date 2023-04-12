@@ -9,7 +9,6 @@ use Onion\Framework\Loop\Interfaces\TaskInterface;
 
 class TraceableScheduler implements SchedulerInterface
 {
-    private array $stack = [];
     private Closure $statCollector;
 
     public function __construct(
@@ -54,21 +53,17 @@ class TraceableScheduler implements SchedulerInterface
         $this->scheduler->onError($handler);
     }
 
-    public function stat(array $trace, $stats): void
+    public function stat(string $name, string $source, array $stats): void
     {
-        $this->stack[] = [
-            $trace,
+        ($this->statCollector)(
+            $name,
+            $source,
             $stats,
-        ];
+        );
     }
 
     public function setStatCollector(Closure $fn): void
     {
         $this->statCollector = $fn;
-    }
-
-    public function __destruct()
-    {
-        ($this->statCollector)($this->stack);
     }
 }
