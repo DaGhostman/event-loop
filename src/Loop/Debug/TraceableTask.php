@@ -5,7 +5,10 @@ namespace Onion\Framework\Loop\Debug;
 use Error;
 use Exception;
 use Fiber;
+use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Task;
+use ReflectionFiber;
+use ReflectionFunction;
 use ReflectionProperty;
 use Throwable;
 
@@ -13,18 +16,69 @@ use function Onion\Framework\Loop\scheduler;
 
 class TraceableTask extends Task
 {
+    private const ALIASED_SOURCES = [
+        'src/functions.php:168-172' => ['coroutine', '{internal}'],
+        'src/functions.php:267-267' => ['suspend', '{internal}'],
+        'src/functions.php:203-216' => ['signal', '{internal}'],
+        'src/functions.php:91-104' => ['write', '{internal}'],
+        'src/functions.php:51-58' => ['read', '{internal}'],
+        'src/functions.php:235-242' => ['with', '{internal}'],
+        'src/functions.php:407-407' => ['sleep', '{internal}'],
+        'src/functions.php:424-424' => ['delay', '{internal}'],
+
+        'vendor/onion/event-loop/src/functions.php:168-172' => ['coroutine', '{internal}'],
+        'vendor/onion/event-loop/src/functions.php:267-267' => ['suspend', '{internal}'],
+        'vendor/onion/event-loop/src/functions.php:203-216' => ['signal', '{internal}'],
+        'vendor/onion/event-loop/src/functions.php:91-104' => ['write', '{internal}'],
+        'vendor/onion/event-loop/src/functions.php:51-58' => ['read', '{internal}'],
+        'vendor/onion/event-loop/src/functions.php:235-242' => ['with', '{internal}'],
+        'vendor/onion/event-loop/src/functions.php:407-407' => ['sleep', '{internal}'],
+        'vendor/onion/event-loop/src/functions.php:424-424' => ['delay', '{internal}'],
+    ];
+
     private readonly array $trace;
+    private readonly string $name;
+    private readonly string $source;
     private readonly float $start;
+
     private array $ticks = [];
 
     private static ReflectionProperty $exceptionTraceProperty;
     private static ReflectionProperty $errorTraceProperty;
 
-    private bool $registered = false;
+    private ?bool $registered = false;
 
 
-    public function __construct(Fiber $coroutine, mixed $args)
+    public function __construct(private readonly Fiber $coroutine, mixed $args)
     {
+        $function = new ReflectionFunction(\Closure::fromCallable((new ReflectionFiber($this->coroutine))->getCallable()));
+        $name = "{$function->getNamespaceName()}\\{$function->getName()}";
+        $source = "{$function->getFileName()}:{$function->getStartLine()}-{$function->getEndLine()}";
+
+        if ($function->getClosureThis() instanceof Signal) {
+            $function = (new ReflectionFunction($function->getClosureScopeClass()
+                ->getProperty('callback')
+                ->getValue($function->getClosureThis())))
+                ->getClosureUsedVariables()['fn'] ?? null;
+
+            if ($function) {
+                $function = new ReflectionFunction($function);
+            }
+
+            $name = "{$function->getNamespaceName()}\\{$function->getName()}";
+            $source = "{$function->getFileName()}:{$function->getStartLine()}-{$function->getEndLine()}";
+
+            foreach (self::ALIASED_SOURCES as $path => $alias) {
+                if (substr($source, -strlen($path)) === $path) {
+                    [$name, $source] = $alias;
+                    break;
+                }
+            }
+        }
+
+        $this->name = $name;
+        $this->source = $source;
+
         $this->trace = debug_backtrace();
         $this->start = hrtime(true);
 
@@ -41,7 +95,7 @@ class TraceableTask extends Task
             $scheduler = scheduler();
 
             if ($scheduler instanceof TraceableScheduler) {
-                $scheduler->stat($this->trace, fn () => [
+                $scheduler->stat($this->name, $this->source, [
                     'ticks' => $this->getIterations(),
                     'duration' => $this->getDuration(),
                     'latency' => $this->getDelay(),
@@ -51,6 +105,7 @@ class TraceableTask extends Task
             }
             $this->registered = true;
         }
+
         $memory = memory_get_usage();
         $start = hrtime(true);
         $end = 0;
@@ -149,5 +204,21 @@ class TraceableTask extends Task
             );
 
         return $ex;
+    }
+
+    public function __destruct()
+    {
+        if (!$this->registered) return;
+        $scheduler = scheduler();
+
+        if ($scheduler instanceof TraceableScheduler) {
+            $scheduler->stat($this->name, $this->source, [
+                'ticks' => $this->getIterations(),
+                'duration' => $this->getDuration(),
+                'latency' => $this->getDelay(),
+                'average' => $this->getAverageDuration(),
+                'memory' => $this->getConsumedMemory(),
+            ]);
+        }
     }
 }
