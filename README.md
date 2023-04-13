@@ -7,9 +7,15 @@ in order to provide native async functionality. By:
     loop
 2.  Add `tick` function that allows for handling control back to the
     event loop to play nice with other coroutines
-3.  Introduce custom stream wrapper (`async://`) that uses signals
-    to better break IO operations transparently for the applications.
-4.  Patching the native `file://` stream to handle all (except `.php` files, since it causes race conditions with autoloader/file inclusion) transparently.
+3.  ~~Introduce custom stream wrapper (`async://`) that uses signals
+    to better break IO operations transparently for the applications.~~
+4.  ~~Patching the native `file://` stream to handle all (except `.php` files, since it causes race conditions with autoloader/file inclusion) transparently.~~
+
+# Known issues
+When working with `symplely/uv-ffi` you should manually call
+`scheduler()->start()` to start the event loop explicitly and
+not rely on the automated start, because the FFI extension gets
+unloaded, before the full script termination.
 
 ---
 
