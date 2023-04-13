@@ -14,6 +14,7 @@ class Uv implements SchedulerInterface
 {
     private readonly mixed $loop;
     private bool $running = false;
+    private bool $stopped = false;
 
     use SchedulerErrorHandler;
 
@@ -24,6 +25,10 @@ class Uv implements SchedulerInterface
 
     public function schedule(TaskInterface $task, int $at = null): void
     {
+        if ($this->stopped) {
+            return;
+        }
+
         if ($at === null) {
             uv_idle_start(uv_idle_init($this->loop), function($handle) use ($task, $at) {
                 uv_close($handle);
@@ -127,6 +132,7 @@ class Uv implements SchedulerInterface
         if (!$this->running) {
             return;
         }
+        $this->stopped = true;
 
         uv_stop($this->loop);
     }
