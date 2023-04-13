@@ -19,7 +19,7 @@ class Uv implements SchedulerInterface
 
     public function __construct()
     {
-        $this->loop = uv_loop_new();
+        $this->loop = uv_loop_init();
     }
 
     public function schedule(TaskInterface $task, int $at = null): void
