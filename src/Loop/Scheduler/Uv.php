@@ -5,12 +5,13 @@ namespace Onion\Framework\Loop\Scheduler;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Loop\Interfaces\SchedulerInterface;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
+use Onion\Framework\Loop\Scheduler\Interfaces\NetworkedSchedulerInterface;
 use Onion\Framework\Loop\Scheduler\Traits\SchedulerErrorHandler;
 use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Task;
 use Throwable;
 
-class Uv implements SchedulerInterface
+class Uv implements SchedulerInterface, NetworkedSchedulerInterface
 {
     private readonly mixed $loop;
     private bool $running = false;
@@ -148,5 +149,42 @@ class Uv implements SchedulerInterface
     public function work(TaskInterface $task): void
     {
         $this->schedule($task);
+    }
+
+    public function listen(string $address, int $port, \Closure $dispatchFunction): string
+    {
+        $sock = uv_tcp_init($this->loop);
+
+        uv_tcp_bind(
+            $sock,
+            preg_match('/^\d+\.\d+\.\d+\.\d+$/', $address) === 1 ?
+                uv_ip4_addr($address, $port) : uv_ip6_addr($address, $port)
+        );
+
+        uv_tcp_simultaneous_accepts($sock, true);
+        uv_listen($sock, 1000, function($server) use ($dispatchFunction) {
+            $client = uv_tcp_init();
+            uv_accept($server, $client);
+
+            uv_read_start($client, function($socket, $nread, $buffer) use ($dispatchFunction, $server) {
+                uv_read_stop($socket);
+
+                if ($buffer !== null && uv_) {
+                    uv_write($socket, $dispatchFunction($buffer), function($socket, $status) use ($dispatchFunction, $server) {
+                        uv_close($socket);
+                        if ($status < 0) {
+                            uv_close($server);
+                            return;
+                        }
+                    });
+                } else {
+                    uv_close($socket);
+                }
+            });
+        });
+
+        $server = uv_tcp_getsockname($sock);
+
+        return "{$server['address']}:{$server['port']}";
     }
 }
