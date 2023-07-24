@@ -2,25 +2,34 @@
 
 namespace Onion\Framework\Loop;
 
-use Closure;
 use Onion\Framework\Loop\Descriptor;
 use Onion\Framework\Loop\Interfaces\{
     ResourceInterface,
-    SchedulerInterface,
-    SocketInterface,
-    TaskInterface
 };
-use Throwable;
 
-class Socket extends Descriptor implements SocketInterface
+class Socket extends Descriptor
 {
+    public function __construct(mixed $resource, private ?string $address = null)
+    {
+        parent::__construct(
+            $resource instanceof ResourceInterface ? $resource->getResource() : $resource
+        );
+    }
+
     public function read(int $size, int $flags = 0): string
     {
-        return stream_socket_recvfrom(
+        $response = stream_socket_recvfrom(
             $this->getResource(),
             $size,
-            $flags
+            $flags,
+            $peer,
         );
+
+        if (!isset($this->address) && $peer !== null) {
+            $this->address = $peer;
+        }
+
+        return $response;
     }
 
     public function write(string $data, int $flags = 0): int
@@ -29,36 +38,26 @@ class Socket extends Descriptor implements SocketInterface
             $this->getResource(),
             $data,
             $flags,
-            stream_socket_get_name($this->getResource(), true)
+            $this->address,
         );
     }
 
-    public function accept(?int $timeout = 0): ResourceInterface
+    public function getName(bool $remote = false): string|false
     {
-        $waitFn = function (
-            TaskInterface $task,
-            SchedulerInterface $scheduler,
-            ResourceInterface $resource,
-            ?int $timeout
-        ): void {
-            try {
-                $resource->wait();
-                $descriptor = new Descriptor(@stream_socket_accept($resource->getResource(), $timeout));
+        return stream_socket_get_name(
+            $this->getResource(),
+            $remote,
+        );
+    }
 
-                $descriptor->unblock();
-
-                $task->resume($descriptor);
-            } catch (Throwable $ex) {
-                $task->throw($ex);
-            } finally {
-                $scheduler->schedule($task);
-            }
-        };
-
-        return signal(
-            function (Closure $resume, TaskInterface $task, SchedulerInterface $scheduler) use ($timeout, $waitFn) {
-                $scheduler->schedule(Task::create($waitFn, [$task, $scheduler, $this, $timeout]));
-            }
+    public function negotiateCrypto(
+        bool $enable = true,
+        int $method = STREAM_CRYPTO_METHOD_TLSv1_2_SERVER | STREAM_CRYPTO_METHOD_TLSv1_3_SERVER,
+    ): bool | int {
+        return stream_socket_enable_crypto(
+            $this->getResource(),
+            $enable,
+            $method,
         );
     }
 }

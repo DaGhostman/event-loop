@@ -1,12 +1,10 @@
 <?php
 
 use function Onion\Framework\Loop\coroutine;
-use function Onion\Framework\Loop\scheduler;
 use function Onion\Framework\Loop\tick;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-$scheduler = scheduler();
 // We add initial task
 $t = coroutine(function () {
     echo "Parent @ - start\n";

@@ -6,20 +6,23 @@ use EvLoop;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Loop\Interfaces\SchedulerInterface;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
-use Onion\Framework\Loop\Scheduler\Traits\SchedulerErrorHandler;
+use Onion\Framework\Loop\Scheduler\Interfaces\NetworkServerAwareSchedulerInterface;
+use Onion\Framework\Loop\Scheduler\Traits\{SchedulerErrorHandler, StreamNetworkUtil};
 use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Task;
 use Throwable;
 
-class Ev implements SchedulerInterface
+class Ev implements SchedulerInterface, NetworkServerAwareSchedulerInterface
 {
     private readonly EvLoop $loop;
 
     private array $tasks = [];
+    private array $signals = [];
 
     private bool $started = false;
 
     use SchedulerErrorHandler;
+    use StreamNetworkUtil;
 
     public function __construct()
     {
@@ -35,20 +38,27 @@ class Ev implements SchedulerInterface
                 ($at - (hrtime(true) / 1e3)) / 1e6,
                 0,
                 function ($watcher) use ($key) {
-                    unset($this->tasks[$key]);
+                    $task = $watcher->data;
+                    if (!$task->isPersistent()) {
+                        unset($this->tasks[$key]);
+                    }
 
-                    if ($watcher->data->isKilled()) {
+                    if ($task->isKilled()) {
                         return;
                     }
 
+                    if ($task->isPersistent()) {
+                        $task = $task->spawn();
+                    }
+
                     try {
-                        $result = $watcher->data->run();
+                        $result = $task->run();
 
                         if ($result instanceof Signal) {
                             try {
-                                $this->schedule(Task::create($result, [&$watcher->data, $this]));
+                                $this->schedule(Task::create(\Closure::fromCallable($result), [$task, $this]));
                             } catch (Throwable $ex) {
-                                if (!$watcher->data->throw($ex)) {
+                                if (!$task->throw($ex)) {
                                     $this->triggerErrorHandlers($ex);
                                 }
                             }
@@ -58,8 +68,8 @@ class Ev implements SchedulerInterface
                         $this->triggerErrorHandlers($e);
                     }
 
-                    if (!$watcher->data->isFinished()) {
-                        $this->schedule($watcher->data);
+                    if (!$task->isFinished()) {
+                        $this->schedule($task);
                     }
                 },
                 $task
@@ -67,20 +77,28 @@ class Ev implements SchedulerInterface
         } else {
             $this->tasks[$key] = $this->loop->idle(
                 function ($watcher) use ($key) {
-                    unset($this->tasks[$key]);
+                    $task = $watcher->data;
 
-                    if ($watcher->data->isKilled()) {
+                    if (!$task->isPersistent()) {
+                        unset($this->tasks[$key]);
+                    }
+
+                    if ($task->isKilled()) {
                         return;
                     }
 
-                    $result = $watcher->data->run();
+                    if ($task->isPersistent()) {
+                        $task = $task->spawn();
+                    }
+
+                    $result = $task->run();
                     if ($result instanceof Signal) {
-                        $this->schedule(Task::create($result, [$watcher->data, $this]));
+                        $this->schedule(Task::create(\Closure::fromCallable($result), [$task, $this]));
                         return;
                     }
 
-                    if (!$watcher->data->isFinished()) {
-                        $this->schedule($watcher->data);
+                    if (!$task->isFinished()) {
+                        $this->schedule($task);
                     }
                 },
                 $task
@@ -100,9 +118,11 @@ class Ev implements SchedulerInterface
             $resource->getResource(),
             \Ev::READ,
             function ($watcher) use ($key) {
-                unset($this->tasks[$key]);
+                if (!$watcher->data->isPersistent()) {
+                    unset($this->tasks[$key]);
+                }
 
-                $this->schedule($watcher->data);
+                $this->schedule($watcher->data->isPersistent() ? $watcher->data->spawn() : $watcher->data);
             },
             $task
         );
@@ -120,9 +140,11 @@ class Ev implements SchedulerInterface
             $resource->getResource(),
             \Ev::WRITE,
             function ($watcher) use ($key) {
-                unset($this->tasks[$key]);
+                if (!$watcher->data->isPersistent()) {
+                    unset($this->tasks[$key]);
+                }
 
-                $this->schedule($watcher->data);
+                $this->schedule($watcher->data->isPersistent() ? $watcher->data->spawn() : $watcher->data);
             },
             $task
         );
@@ -151,10 +173,10 @@ class Ev implements SchedulerInterface
     {
         $key = spl_object_id($task);
 
-        $this->tasks[$key] = $this->loop->signal(
+        $this->signals[$key] = $this->loop->signal(
             $signal,
             function ($watcher) use ($key) {
-                unset($this->tasks[$key]);
+                unset($this->signals[$key]);
 
                 $this->schedule($watcher->data);
             },

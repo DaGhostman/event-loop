@@ -58,6 +58,5 @@ $task = coroutine(function ($dispatcher) {
 }, [$dispatcher]);
 
 coroutine(function (TaskInterface $signal) {
-    var_dump($signal);
+    var_dump(get_class($signal));
 }, [$task]);
-scheduler()->start();

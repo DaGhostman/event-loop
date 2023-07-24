@@ -8,13 +8,13 @@ use Closure;
 use Fiber;
 use FiberError;
 use Onion\Framework\Loop\Channels\Channel;
-use Onion\Framework\Loop\Debug\TraceableScheduler;
 use Onion\Framework\Loop\Interfaces\{
     ResourceInterface,
     SchedulerInterface,
     TaskInterface,
     TimerInterface
 };
+use Onion\Framework\Loop\Resources\Buffer;
 use Onion\Framework\Loop\Scheduler;
 use Onion\Framework\Loop\Types\Operation;
 use RuntimeException;
@@ -31,7 +31,7 @@ if (!function_exists(__NAMESPACE__ . '\read')) {
      *
      * @param ResourceInterface $socket Resource to wait upon
      * @param ?Closure $fn The function to trigger when data is available
-     * @param bool $blocking Should the calling coroutine block until completion
+     * @param bool $sync Should the calling coroutine block until completion
      * or return immediately.
      *
      * @return mixed The result of `$fn` in blocking mode (default) or null in non-blocking
@@ -42,11 +42,11 @@ if (!function_exists(__NAMESPACE__ . '\read')) {
     function read(
         ResourceInterface $socket,
         ?Closure $fn = null,
-        bool $blocking = true,
+        bool $sync = true,
     ): mixed {
         $fn = $fn ?? fn (ResourceInterface $socket): ResourceInterface => $socket;
 
-        return $blocking ?
+        return $sync ?
             signal(
                 fn (
                     Closure $resume,
@@ -62,31 +62,45 @@ if (!function_exists(__NAMESPACE__ . '\read')) {
 
 if (!function_exists(__NAMESPACE__ . '\write')) {
     /**
-     * Trigger `$fn` whenever `$resource` is writable (i.e is ready to
-     * accept data). The signature of `$fn` is `fn (ResourceInterface $resource
-     * ) => mixed`
-     *
-     * Note that the function should take care checking if the resource is EOF(closed)
-     * and if the data has been completely written
+     * Attempt to write `$data` to `$resource`. The function will return
+     * either immediately or block the current coroutine until the data
+     * has been written or has failed writing.
      *
      * @param ResourceInterface $socket Resource to wait upon
-     * @param ?Closure $fn The function to trigger when data is available
-     * @param bool $blocking Should the calling coroutine block until completion
+     * @param string $data The text to attempt to write
+     * @param bool $sync Should the calling coroutine block until completion
      * or return immediately.
      *
-     * @return mixed The result of `$fn` in blocking mode (default) or null in non-blocking
+     * @return int|null The number of bytes written in blocking mode (default) or null in non-blocking
      *
      * @throws FiberError
      * @throws Throwable
      */
     function write(
         ResourceInterface $socket,
-        ?Closure $fn = null,
-        bool $blocking = true,
-    ): mixed {
-        $fn = $fn ?? fn (ResourceInterface $resource): ResourceInterface => $resource;
+        string $data,
+        bool $sync = true,
+    ): ?int {
 
-        return $blocking ?
+        $fn = static function (ResourceInterface $resource) use (&$data) {
+            $length = strlen($data);
+            $size = 0;
+            while ($size < $length) {
+                $len = $resource->write(substr($data, $size));
+                suspend();
+
+                if ($len === false) {
+                    // prevent infinite retries
+                    break;
+                }
+
+                $size += $len;
+            }
+
+            return $size;
+        };
+
+        return $sync ?
             signal(
                 fn (
                     /**
@@ -134,10 +148,6 @@ if (!function_exists(__NAMESPACE__ . '\scheduler')) {
             } else {
                 $scheduler = new Scheduler\Select();
             }
-
-            if (EVENT_LOOP_TRACE_TASKS) {
-                $scheduler = new TraceableScheduler($scheduler);
-            }
         }
 
         if ($scheduler === null) {
@@ -145,8 +155,6 @@ if (!function_exists(__NAMESPACE__ . '\scheduler')) {
                 "Unable to create default scheduler and a default one couldn't be created"
             );
         }
-
-
 
         return $scheduler;
     }
@@ -200,7 +208,7 @@ if (!function_exists(__NAMESPACE__ . '\signal')) {
             return $result;
         }
 
-        return Fiber::suspend(new Signal(function (TaskInterface $task, SchedulerInterface $scheduler,) use ($fn) {
+        return Fiber::suspend(new Signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($fn) {
             $task->suspend();
 
             try {
@@ -421,7 +429,7 @@ if (!function_exists(__NAMESPACE__ . '\delay')) {
      */
     function delay(float|int $timeout): void
     {
-        signal(fn (Closure $resume) => Timer::after(fn (): mixed => $resume(), (int) $timeout * 1000));
+        signal(fn (Closure $resume) => after($resume, (int) $timeout * 1000));
     }
 }
 
@@ -501,5 +509,24 @@ if (!function_exists(__NAMESPACE__ . '\pipe')) {
                 );
             }, [$source, $destination])
         );
+    }
+}
+
+if (!function_exists(__NAMESPACE__ . '\buffer')) {
+    function buffer(ResourceInterface $resource, int $limit = -1): Buffer {
+        $buffer = new Buffer($limit);
+
+        scheduler()->onRead($resource, Task::create(
+            static function (ResourceInterface $resource, Buffer $buffer) {
+                while ($chunk = $resource->read(65535)) {
+                    $buffer->write($chunk);
+                    suspend();
+                }
+            },
+            [$resource, $buffer],
+            true,
+        ));
+
+        return $buffer;
     }
 }

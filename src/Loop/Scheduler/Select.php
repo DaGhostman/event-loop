@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace Onion\Framework\Loop\Scheduler;
 
 use Onion\Framework\Loop\Interfaces\{ResourceInterface, SchedulerInterface, TaskInterface};
+use Onion\Framework\Loop\Scheduler\Interfaces\NetworkClientAwareSchedulerInterface;
+use Onion\Framework\Loop\Scheduler\Interfaces\NetworkServerAwareSchedulerInterface;
 use Onion\Framework\Loop\Scheduler\Traits\SchedulerErrorHandler;
+use Onion\Framework\Loop\Scheduler\Traits\StreamNetworkUtil;
 use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Task;
 use SplQueue;
 use Throwable;
 
-class Select implements SchedulerInterface
+class Select implements SchedulerInterface, NetworkServerAwareSchedulerInterface, NetworkClientAwareSchedulerInterface
 {
     private SplQueue $queue;
     /**
@@ -31,8 +34,10 @@ class Select implements SchedulerInterface
     // resourceID => [socket, tasks]
     protected array $reads = [];
     protected array $writes = [];
+    protected array $closes = [];
 
     use SchedulerErrorHandler;
+    use StreamNetworkUtil;
 
     public function __construct()
     {
@@ -110,13 +115,22 @@ class Select implements SchedulerInterface
                 continue;
             }
 
+            if ($task->isPersistent()) {
+                // Return the parent task back to the queue for rescheduling
+                $this->schedule($task);
+                // Spawn a new task and schedule it for execution
+                $task = $task->spawn();
+                // Swap the parent with the child task for execution
+                $this->schedule($task);
+            }
+
             try {
                 $result = $task->run();
 
                 if ($result instanceof Signal) {
                     try {
                         $this->queue->enqueue(
-                            Task::create($result, [$task, $this])
+                            Task::create(\Closure::fromCallable($result), [$task, $this])
                         );
                         continue;
                     } catch (Throwable $ex) {
@@ -146,25 +160,28 @@ class Select implements SchedulerInterface
     {
         $rSocks = [];
         foreach ($this->reads as [$socket]) {
-            if (is_resource($socket)) {
-                $rSocks[] = $socket;
-            } else {
+            if (get_resource_type($socket) === 'Unknown') {
                 unset($this->reads[get_resource_id($socket)]);
+                continue;
             }
+
+            $rSocks[] = $socket;
         }
 
         $wSocks = [];
         foreach ($this->writes as [$socket]) {
-            if (is_resource($socket)) {
-                $wSocks[] = $socket;
-            } else {
+            if (get_resource_type($socket) === 'Unknown') {
                 unset($this->writes[get_resource_id($socket)]);
+                continue;
             }
+            $wSocks[] = $socket;
         }
+
+        $timeout *= 1000;
 
         if (
             (empty($rSocks) && empty($wSocks)) ||
-            @!stream_select($rSocks, $wSocks, $eSocks, $timeout !== null ? 0 : null, $timeout)
+            @!stream_select($rSocks, $wSocks, $eSocks, $timeout !== null ? 10 : null, $timeout)
         ) {
             return;
         }
@@ -172,20 +189,27 @@ class Select implements SchedulerInterface
         foreach ($rSocks as $socket) {
             $id = get_resource_id($socket);
             [, $tasks] = $this->reads[$id];
-            unset($this->reads[$id]);
 
-            foreach ($tasks as $task) {
-                $this->schedule($task);
+            foreach ($tasks as $idx => $task) {
+                if ($task->isKilled()) {
+                    continue;
+                }
+
+                $this->schedule($task->isPersistent() ? $task->spawn() : $task);
             }
         }
 
         foreach ($wSocks as $socket) {
             $id = get_resource_id($socket);
             [, $tasks] = $this->writes[$id];
-            unset($this->writes[$id]);
 
-            foreach ($tasks as $task) {
-                $this->schedule($task);
+            foreach ($tasks as $idx => $task) {
+                if ($task->isKilled()) {
+                    unset($this->writes[$id][1][$idx]);
+                    continue;
+                }
+
+                $this->schedule($task->isPersistent() ? $task->spawn() : $task);
             }
         }
     }
@@ -215,8 +239,8 @@ class Select implements SchedulerInterface
         $tick = (int) (hrtime(true) / 1e+3);
         $isEmpty = $this->queue->isEmpty();
         $timeout = $isEmpty ? EVENT_LOOP_STREAM_IDLE_TIMEOUT : 0;
-        if (!empty($this->timers) && $isEmpty) {
-            $diff = array_key_first($this->timers) - $tick;
+        if (count($this->timers) > 0 && $isEmpty) {
+            $diff = min(array_keys($this->timers)) - $tick;
             $timeout = (int) ($diff <= 0 ? 0 : $diff);
         }
 
@@ -251,6 +275,11 @@ class Select implements SchedulerInterface
             } elseif (extension_loaded('pcntl')) {
                 pcntl_async_signals(true);
                 pcntl_signal($signal, $this->handleSignal(...));
+            } else {
+                user_error(
+                    'Signal handling is not supported, because it is not windows and pcntl extension is not loaded',
+                    E_USER_WARNING
+                );
             }
         }
 

@@ -47,12 +47,18 @@ class Timer implements TimerInterface
                     }
                 }
             },
-            [$coroutine, $ms, $repeating]
+            [$coroutine, $ms, $repeating],
         );
 
-        scheduler()->schedule($task, ((int) floor(hrtime(true) / 1e+3)) + $ms);
+        $timer = new static($task);
 
-        return new static($task);
+        return signal(
+            function (Closure $resume, TaskInterface $t, SchedulerInterface $scheduler) use ($timer, $task, $ms) {
+                $scheduler->schedule($task, ((int) floor(hrtime(true) / 1e+3)) + $ms);
+                $resume($timer);
+            }
+        );
+
     }
 
     public static function interval(Closure $coroutine, int $ms): TimerInterface
