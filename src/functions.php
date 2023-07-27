@@ -433,32 +433,6 @@ if (!function_exists(__NAMESPACE__ . '\delay')) {
     }
 }
 
-
-if (!function_exists(__NAMESPACE__ . '\watch')) {
-    /**
-     * Monitor a `$resource` until it is possible to perform the
-     * provided `$operation` and execute the provided `$fn`.
-     *
-     * @param ResourceInterface $resource
-     * @param Closure $fn
-     * @param Operation $operation Defaults to `read`
-     *
-     * @return TaskInterface
-     */
-    function watch(
-        ResourceInterface $resource,
-        Closure $fn,
-        Operation $operation = Operation::READ,
-    ): TaskInterface {
-        return coroutine(function (Closure $fn, ResourceInterface $resource) use ($operation) {
-            while (is_pending($resource, $operation)) {
-                $resource->wait($operation);
-                coroutine($fn, [$resource]);
-            }
-        }, [$fn, $resource]);
-    }
-}
-
 if (!function_exists(__NAMESPACE__ . '\after')) {
     /**
      * Trigger the provided `$fn` after the specified timeout
@@ -490,24 +464,45 @@ if (!function_exists(__NAMESPACE__ . '\repeat')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\pipe')) {
+    /**
+     * Summary of Onion\Framework\Loop\pipe
+     * @param \Onion\Framework\Loop\Interfaces\ResourceInterface $source
+     * @param \Onion\Framework\Loop\Interfaces\ResourceInterface $destination
+     * @param int $chunkSize
+     * @param bool $sync
+     *
+     * @return int|null Number of bytes written or null if the operation is async
+     */
     function pipe(
         ResourceInterface $source,
         ResourceInterface $destination,
         int $chunkSize = 65535,
+        bool $sync = true,
     ): void {
-        stream_set_read_buffer($source->getResource(), 0);
-        stream_set_write_buffer($destination->getResource(), 0);
+        $input = $source->getResource();
+        $output = $destination->getResource();
 
-        scheduler()->onRead(
+        if ($input !== null) {
+            stream_set_read_buffer($source->getResource(), 0);
+        }
+
+        if ($output !== null) {
+            stream_set_write_buffer($destination->getResource(), 0);
+        }
+
+        $sync ? signal(function ($resume) use ($source, $destination, $chunkSize) {
+            while (!$source->eof()) {
+                write($destination, $source->read($chunkSize));
+            }
+
+            $resume();
+        }) : scheduler()->onRead(
             $source,
             Task::create(function (ResourceInterface $source, ResourceInterface $destination) use ($chunkSize) {
-                scheduler()->onWrite(
-                    $destination,
-                    Task::create(function (ResourceInterface $destination, string $data) {
-                        $destination->write($data);
-                    }, [$destination, $source->read($chunkSize)])
-                );
-            }, [$source, $destination])
+                while (!$source->eof()) {
+                    write($destination, $source->read($chunkSize));
+                }
+            }, [$source, $destination], false)
         );
     }
 }
@@ -515,17 +510,12 @@ if (!function_exists(__NAMESPACE__ . '\pipe')) {
 if (!function_exists(__NAMESPACE__ . '\buffer')) {
     function buffer(ResourceInterface $resource, int $limit = -1): Buffer {
         $buffer = new Buffer($limit);
-
-        scheduler()->onRead($resource, Task::create(
-            static function (ResourceInterface $resource, Buffer $buffer) {
-                while ($chunk = $resource->read(65535)) {
-                    $buffer->write($chunk);
-                    suspend();
-                }
-            },
-            [$resource, $buffer],
-            true,
-        ));
+        read($resource, static function (ResourceInterface $resource, Buffer $buffer) {
+            while ($chunk = $resource->read(65535)) {
+                $buffer->write($chunk);
+                suspend();
+            }
+        }, false);
 
         return $buffer;
     }
