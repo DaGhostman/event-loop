@@ -1,7 +1,6 @@
 <?php
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
-use Onion\Framework\Loop\Resources\Interfaces\{ReadableResourceInterface, WritableResourceInterface};
-use Onion\Framework\Loop\Scheduler\{Select, Uv};
+use Onion\Framework\Loop\Scheduler\{Select, Uv, Event};
 use function Onion\Framework\Loop\scheduler;
 use function Onion\Framework\Loop\read;
 use function Onion\Framework\Loop\write;
@@ -9,10 +8,8 @@ use function Onion\Framework\Loop\suspend;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-scheduler(new Uv());
-scheduler()->addErrorHandler(static function (...$args): void {
-    var_dump($args);
-});
+scheduler(new Select());
+scheduler()->addErrorHandler(var_dump(...));
 
 // $server = scheduler()->open(
 //     '127.0.0.1',
@@ -33,17 +30,15 @@ scheduler()->connect('93.184.216.34', 80, static function (
     ResourceInterface $resource,
 ): void {
     write($resource, "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n");
-
     read($resource, function (ResourceInterface $resource) {
         $data = '';
-        while (($chunk = $resource->read(65535))) {
-            $data .= $chunk;
+        while (!$resource->eof()) {
+            $data .= $resource->read(8);
             suspend();
         }
 
-        echo 'Received!' . PHP_EOL;
-        $resource->close();
+        echo $data . PHP_EOL;
     });
 
-    echo 'Done!';
+    $resource->close();
 });
