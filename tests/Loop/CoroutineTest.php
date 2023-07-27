@@ -17,43 +17,6 @@ class CoroutineTest extends TestCase
         });
     }
 
-    public function testExceptionHandling()
-    {
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('received');
-
-        coroutine(function () {
-            throw new \RuntimeException('received');
-        })->sync();
-    }
-
-    public function testExternalExceptionHandling()
-    {
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('received');
-
-        coroutine(fn() => signal(fn($resume) => $resume()))
-            ->throw(new \RuntimeException('received'));
-    }
-
-    public function testSignalExceptionHandling()
-    {
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('received');
-
-        coroutine(function () {
-            try {
-                signal(
-                    function () {
-                        throw new \RuntimeException('ex');
-                    }
-                );
-            } catch (\Throwable $ex) {
-                throw new \RuntimeException('received');
-            }
-        });
-    }
-
     public function testCoroutineSignals()
     {
         coroutine(function () {

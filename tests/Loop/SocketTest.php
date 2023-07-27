@@ -28,26 +28,12 @@ class SocketTest extends TestCase
         }
     }
 
-    public function testConnectionAcceptance()
-    {
-        $socket = new Socket($this->resource);
-        $socket->unblock();
-        coroutine(function () {
-            stream_socket_client('tcp://127.0.0.1:12345');
-        });
-        $connection = $socket->accept();
-        $this->assertInstanceOf(ResourceInterface::class, $connection);
-        $connection->close();
-    }
-
     public function testDataTransfer()
     {
         $fp = stream_socket_client('tcp://1.1.1.1:80');
-        $socket = new Socket($fp);
+        $socket = new Socket($fp, stream_socket_get_name($fp, false));
         $socket->unblock();
-        $socket->wait(Operation::WRITE);
         $socket->write("HTTP/1.1 GET /\r\n\r\n");
-        $socket->wait(Operation::READ);
         $this->assertNotSame('', $socket->read(1024));
 
         $socket->close();

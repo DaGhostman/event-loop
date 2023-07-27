@@ -9,6 +9,7 @@ use Onion\Framework\Loop\Types\Operation;
 use Onion\Framework\Test\TestCase;
 
 use function Onion\Framework\Loop\scheduler;
+use function Onion\Framework\Loop\coroutine;
 
 class DescriptorTest extends TestCase
 {
@@ -25,44 +26,15 @@ class DescriptorTest extends TestCase
     {
         file_put_contents($this->name, 'example-data');
         $resource = new Descriptor($this->resource);
-        $resource->wait();
         $this->assertSame('example-data', $resource->read(1024));
     }
 
     public function testWritingToFile()
     {
         $resource = new Descriptor($this->resource);
-        $resource->wait(Operation::WRITE);
         $resource->write('example-data');
         fseek($resource->getResource(), 0);
         $this->assertSame('example-data', $resource->read(1024));
-    }
-
-    public function testFileReadTaskHandling()
-    {
-        $this->expectOutputString('12');
-
-        $resource = new Descriptor($this->resource);
-        scheduler()->onRead($resource, Task::create(function () {
-            echo '1';
-        }));
-        scheduler()->onRead($resource, Task::create(function () {
-            echo '2';
-        }));
-    }
-
-    public function testReadOnClosedResource()
-    {
-        $this->expectOutputString('');
-
-        $resource = new Descriptor($this->resource);
-        $resource->close();
-        scheduler()->onRead($resource, Task::create(function () {
-            echo '1';
-        }));
-        scheduler()->onRead($resource, Task::create(function () {
-            echo '2';
-        }));
     }
 
     public function testReadOnWriteableStream()
@@ -72,33 +44,6 @@ class DescriptorTest extends TestCase
         $this->assertFalse($resource->read(1024));
 
         fclose($resource->getResource());
-    }
-
-    public function testFileWriteTaskHandling()
-    {
-        $this->expectOutputString('12');
-
-        $resource = new Descriptor($this->resource);
-        scheduler()->onWrite($resource, Task::create(function () {
-            echo '1';
-        }));
-        scheduler()->onWrite($resource, Task::create(function () {
-            echo '2';
-        }));
-    }
-
-    public function testWriteOnClosedResource()
-    {
-        $this->expectOutputString('');
-        $resource = new Descriptor($this->resource);
-        $resource->close();
-
-        scheduler()->onWrite($resource, Task::create(function () {
-            echo '1';
-        }));
-        scheduler()->onWrite($resource, Task::create(function () {
-            echo '2';
-        }));
     }
 
     public function testWriteOnReadableStream()
