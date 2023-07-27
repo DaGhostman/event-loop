@@ -2,12 +2,15 @@
 declare(strict_types=1);
 
 namespace Onion\Framework\Loop\Resources;
+use Onion\Framework\Loop\Interfaces\ResourceInterface;
 
-class Buffer
+class Buffer implements ResourceInterface
 {
     private string $contents = '';
     private int $size = 0;
     private int $cursor = 0;
+
+    private bool $closed = false;
 
     public function __construct(
         private readonly int $limit = -1
@@ -35,24 +38,24 @@ class Buffer
         return $length;
     }
 
-    // public function seek(int $position, int $whence = SEEK_SET): void
-    // {
-    //     $this->cursor = match ($whence) {
-    //         SEEK_SET => $position,
-    //         SEEK_CUR => $this->cursor + $position,
-    //         SEEK_END => $this->size,
-    //     };
-    // }
+    public function seek(int $position, int $whence = SEEK_SET): void
+    {
+        $this->cursor = match ($whence) {
+            SEEK_SET => $position,
+            SEEK_CUR => $this->cursor + $position,
+            SEEK_END => $this->size,
+        };
+    }
 
-    // public function tell(): int
-    // {
-    //     return $this->cursor;
-    // }
+    public function tell(): int
+    {
+        return $this->cursor;
+    }
 
-    // public function rewind(): void
-    // {
-    //     $this->cursor = 0;
-    // }
+    public function rewind(): void
+    {
+        $this->cursor = 0;
+    }
 
     // public function flush(): void
     // {
@@ -63,7 +66,7 @@ class Buffer
 
     // public function drain(int $cursor = null): void
     // {
-    //     $this->contents = substr($this->contents, $cursor ?? $this->cursor);
+    //     $this->contents = substr($this->contents, 0, $cursor ?? $this->cursor);
     //     $this->size = strlen($this->contents);
     //     $this->cursor = 0;
     // }
@@ -73,20 +76,30 @@ class Buffer
         return $this->cursor === $this->size;
     }
 
+	public function size(): int
+	{
+		return $this->size;
+	}
+
+    public function __toString(): string
+    {
+        return $this->contents;
+    }
 	/**
 	 * Close the underlying resource
 	 * @return bool Whether the operation succeeded or not
 	 */
-	public function close(): bool {
-        $this->limit = 0;
-        // todo: prevent further operations
+	public function close(): bool
+    {
+        return $this->closed = true;
 	}
 
 	/**
 	 * Attempt to make operations on the underlying resource blocking
 	 * @return bool Whether the operation succeeded or not
 	 */
-	public function block(): bool {
+	public function block(): bool
+    {
         return true;
 	}
 
@@ -94,71 +107,39 @@ class Buffer
 	 * Attempt to make operations on the underlying resource non-blocking
 	 * @return bool Whether the operation succeeded or not
 	 */
-	public function unblock(): bool {
-        return true;
-	}
-
-	/**
-	 * Attempt to acquire or release an already acquired lock on the
-	 * underlying resource
-	 *
-	 * @param int $lockType Same as flock's $operation parameter
-	 * @return bool Whether a lock has been acquired/released or not
-	 */
-	public function lock(int $lockType): bool {
-        return true;
-	}
-
-	/**
-	 * Attempt to release an already acquired lock on the underlying
-	 * resource
-	 * @return bool Whether a lock has been released or not
-	 */
-	public function unlock(): bool {
-        return true;
-	}
-
-	/**
-	 * Suspend the execution of the coroutine from which this method is
-	 * called until the provided operation is possible on the current
-	 * resource
-	 *
-	 * @param \Onion\Framework\Loop\Types\Operation $operation The operation to wait for
-	 * @return void
-	 */
-	public function wait(\Onion\Framework\Loop\Types\Operation $operation = Onion\Framework\Loop\Types\Operation::READ): void {
-        // nothing to do
+	public function unblock(): bool
+    {
+        return false;
 	}
 
 	/**
 	 * Returns the underlying resource
-	 * @return resource
 	 */
-	public function getResource() {
-        // todo: handle creating of temp resource
+	public function getResource(): mixed
+    {
+        return null;
 	}
 
 	/**
 	 * Retrieve the numeric identifier of the underlying resource
 	 * @return int
 	 */
-	public function getResourceId(): int {
-        // todo: implement based on getResource()
-	}
-
-	/**
-	 * @return bool
-	 */
-	public function isAlive(): bool {
-
+	public function getResourceId(): int
+    {
+        return -1;
 	}
 
 	/**
 	 * Detaches the underlying resource from the current object and
 	 * returns it, making the current object obsolete
-	 * @return resource
 	 */
-	public function detach(): mixed {
-        // todo invalidate resource & prevent further operations
+	public function detach(): mixed
+    {
+        $this->close();
+        $this->contents = '';
+        $this->size = 0;
+        $this->cursor = 0;
+
+        return null;
 	}
 }
