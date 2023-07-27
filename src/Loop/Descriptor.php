@@ -96,21 +96,6 @@ class Descriptor implements ResourceInterface
         return stream_set_blocking($this->getResource(), false);
     }
 
-    public function wait(Operation $operation = Operation::READ): void
-    {
-        signal(function (callable $resume, TaskInterface $task, SchedulerInterface $scheduler) use ($operation) {
-            $task->resume();
-            switch ($operation) {
-                case Operation::READ:
-                    $scheduler->onRead($this, $task);
-                    break;
-                case Operation::WRITE:
-                    $scheduler->onWrite($this, $task);
-                    break;
-            }
-        });
-    }
-
     public function lock(int $lockType = LOCK_NB | LOCK_SH): bool
     {
         return flock($this->resource, $lockType);
