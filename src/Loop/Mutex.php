@@ -1,9 +1,10 @@
 <?php
 declare(strict_types=1);
 
-namespace Onion\Framework\Loop\Scheduler;
+namespace Onion\Framework\Loop;
 
 use Closure;
+use Onion\Framework\Loop\Interfaces\MutexInterface;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
 use Onion\Framework\Loop\Scheduler\Types\LockType;
 
@@ -12,7 +13,7 @@ use function Onion\Framework\Loop\signal;
 /**
  * @internal
  */
-class Mutex
+class Mutex implements MutexInterface
 {
     private static \WeakMap $mutexes;
 
