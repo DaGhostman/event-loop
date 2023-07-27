@@ -14,6 +14,7 @@ class CallbackStream implements ResourceInterface
 
     public function __construct(
         private readonly Closure $reader,
+		private readonly Closure $eof,
         private readonly Closure $writer,
         private readonly Closure $closer,
     ) {
@@ -22,7 +23,7 @@ class CallbackStream implements ResourceInterface
 
     public function write(string $data): int|false
     {
-        return ($this->writer)($data) ?? strlen($data);
+        return ($this->writer)($data, $this->close(...));
     }
 
 	/**
@@ -34,7 +35,7 @@ class CallbackStream implements ResourceInterface
 	 */
 	public function read(int $size): false|string
     {
-        return ($this->reader)($size) ?? false;
+        return ($this->reader)($size, $this->close(...)) ?? false;
 	}
 
 	/**
@@ -68,48 +69,9 @@ class CallbackStream implements ResourceInterface
         return true;
 	}
 
-	/**
-	 * Attempt to acquire or release an already acquired lock on the
-	 * underlying resource
-	 *
-	 * @param int $lockType Same as flock's $operation parameter
-	 * @return bool Whether a lock has been acquired/released or not
-	 */
-	public function lock(int $lockType = LOCK_NB | LOCK_SH): bool
+	public function getResource(): mixed
     {
-        return true;
-	}
-
-	/**
-	 * Attempt to release an already acquired lock on the underlying
-	 * resource
-	 * @return bool Whether a lock has been released or not
-	 */
-	public function unlock(): bool
-    {
-        return true;
-	}
-
-	/**
-	 * Suspend the execution of the coroutine from which this method is
-	 * called until the provided operation is possible on the current
-	 * resource
-	 *
-	 * @param \Onion\Framework\Loop\Types\Operation $operation The operation to wait for
-	 * @return void
-	 */
-	public function wait(\Onion\Framework\Loop\Types\Operation $operation = Onion\Framework\Loop\Types\Operation::READ): void
-    {
-        // nothing to do, callbacks are always available
-	}
-
-	/**
-	 * Returns the underlying resource
-	 * @return resource
-	 */
-	public function getResource()
-    {
-        return $this->resource;
+        return null;
 	}
 
 	/**
@@ -118,7 +80,7 @@ class CallbackStream implements ResourceInterface
 	 */
 	public function getResourceId(): int
     {
-        return (int) $this->resource;
+        return -1;
 	}
 
 	/**
@@ -127,7 +89,7 @@ class CallbackStream implements ResourceInterface
 	 */
 	public function eof(): bool
     {
-        return false;
+        return ($this->eof)() || $this->closed;
 	}
 
 	/**
