@@ -82,6 +82,11 @@ class Select implements SchedulerInterface, NetworkServerAwareSchedulerInterface
 
     public function onRead(ResourceInterface $resource, TaskInterface $task): void
     {
+        if ($resource->getResource() === null) {
+            $this->schedule($task);
+            return;
+        }
+
         $socket = $resource->getResourceId();
 
         if (isset($this->reads[$socket])) {
@@ -93,6 +98,11 @@ class Select implements SchedulerInterface, NetworkServerAwareSchedulerInterface
 
     public function onWrite(ResourceInterface $resource, TaskInterface $task): void
     {
+        if ($resource->getResource() === null) {
+            $this->schedule($task);
+            return;
+        }
+
         $socket = $resource->getResourceId();
 
         if (isset($this->writes[$socket])) {
@@ -128,28 +138,16 @@ class Select implements SchedulerInterface, NetworkServerAwareSchedulerInterface
                 $result = $task->run();
 
                 if ($result instanceof Signal) {
-                    try {
-                        $this->queue->enqueue(
-                            Task::create(\Closure::fromCallable($result), [$task, $this])
-                        );
-                        continue;
-                    } catch (Throwable $ex) {
-                        if (!$task->throw($ex)) {
-                            $this->triggerErrorHandlers($ex);
-                        }
-                    }
+                    $this->queue->enqueue(
+                        Task::create(\Closure::fromCallable($result), [$task, $this])
+                    );
+                    continue;
                 }
             } catch (Throwable $ex) {
-                if (!$task->throw($ex)) {
-                    $this->triggerErrorHandlers($ex);
-                }
-                $this->schedule($task);
-                continue;
+                $this->triggerErrorHandlers($ex);
             }
 
-            if (!$task->isFinished()) {
-                $this->schedule($task);
-            }
+            $this->schedule($task);
         }
     }
 

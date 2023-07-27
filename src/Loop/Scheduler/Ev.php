@@ -55,13 +55,7 @@ class Ev implements SchedulerInterface, NetworkServerAwareSchedulerInterface
                         $result = $task->run();
 
                         if ($result instanceof Signal) {
-                            try {
-                                $this->schedule(Task::create(\Closure::fromCallable($result), [$task, $this]));
-                            } catch (Throwable $ex) {
-                                if (!$task->throw($ex)) {
-                                    $this->triggerErrorHandlers($ex);
-                                }
-                            }
+                            $this->schedule(Task::create(\Closure::fromCallable($result), [$task, $this]));
                             return;
                         }
                     } catch (Throwable $e) {
@@ -91,15 +85,17 @@ class Ev implements SchedulerInterface, NetworkServerAwareSchedulerInterface
                         $task = $task->spawn();
                     }
 
-                    $result = $task->run();
-                    if ($result instanceof Signal) {
-                        $this->schedule(Task::create(\Closure::fromCallable($result), [$task, $this]));
-                        return;
+                    try {
+                        $result = $task->run();
+                        if ($result instanceof Signal) {
+                            $this->schedule(Task::create(\Closure::fromCallable($result), [$task, $this]));
+                            return;
+                        }
+                    } catch (Throwable $e) {
+                        $this->triggerErrorHandlers($e);
                     }
 
-                    if (!$task->isFinished()) {
-                        $this->schedule($task);
-                    }
+                    $this->schedule($task);
                 },
                 $task
             );
@@ -108,6 +104,11 @@ class Ev implements SchedulerInterface, NetworkServerAwareSchedulerInterface
 
     public function onRead(ResourceInterface $resource, TaskInterface $task): void
     {
+        if ($resource->getResource() === null) {
+            $this->schedule($task);
+            return;
+        }
+
         if ($resource->eof()) {
             return;
         }
@@ -130,6 +131,11 @@ class Ev implements SchedulerInterface, NetworkServerAwareSchedulerInterface
 
     public function onWrite(ResourceInterface $resource, TaskInterface $task): void
     {
+        if ($resource->getResource() === null) {
+            $this->schedule($task);
+            return;
+        }
+
         if ($resource->eof()) {
             return;
         }

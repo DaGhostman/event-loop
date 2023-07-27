@@ -17,7 +17,6 @@ use Onion\Framework\Loop\Scheduler\Interfaces\NetworkServerAwareSchedulerInterfa
 use Onion\Framework\Loop\Resources\Buffer;
 use Throwable;
 
-use function Onion\Framework\Loop\suspend;
 use Onion\Framework\Server\Interfaces\ContextInterface as ServerContext;
 use Onion\Framework\Client\Interfaces\ContextInterface as ClientContext;
 use Onion\Framework\Loop\Resources\CallbackStream;
@@ -26,6 +25,9 @@ use Onion\Framework\Loop\Scheduler\Types\NetworkProtocol;
 use Onion\Framework\Loop\Scheduler\Types\NetworkAddressType;
 use EventSslContext;
 use Onion\Framework\Loop\Scheduler\Interfaces\NetworkClientAwareSchedulerInterface;
+
+use function Onion\Framework\Loop\suspend;
+use function Onion\Framework\Loop\signal;
 
 class Event implements SchedulerInterface, NetworkServerAwareSchedulerInterface, NetworkClientAwareSchedulerInterface
 {
@@ -39,6 +41,7 @@ class Event implements SchedulerInterface, NetworkServerAwareSchedulerInterface,
     use SchedulerErrorHandler;
     use StreamNetworkUtil {
         open as private nativeOpen;
+        connect as private nativeConnect;
     }
 
     public function __construct()
@@ -81,22 +84,14 @@ class Event implements SchedulerInterface, NetworkServerAwareSchedulerInterface,
                     $result = $task->run();
 
                     if ($result instanceof Signal) {
-                        try {
-                            $this->schedule(Task::create(\Closure::fromCallable($result), [$task, $this]));
-                        } catch (Throwable $ex) {
-                            if (!$task->throw($ex)) {
-                                $this->triggerErrorHandlers($ex);
-                            }
-                        }
+                        $this->schedule(Task::create(Closure::fromCallable($result), [$task, $this]));
                         return;
                     }
                 } catch (Throwable $ex) {
                     $this->triggerErrorHandlers($ex);
                 }
 
-                if (!$task->isFinished()) {
-                    $this->schedule($task);
-                }
+                $this->schedule($task);
             },
             $task,
         ))->add($at !== null ? ($at - (hrtime(true) / 1e+3)) / 1e+6 : 0);
@@ -106,6 +101,11 @@ class Event implements SchedulerInterface, NetworkServerAwareSchedulerInterface,
 
     public function onRead(ResourceInterface $resource, TaskInterface $task): void
     {
+        if ($resource->getResource() === null) {
+            $this->schedule($task);
+            return;
+        }
+
         if ($resource->eof()) {
             return;
         }
@@ -132,6 +132,11 @@ class Event implements SchedulerInterface, NetworkServerAwareSchedulerInterface,
 
     public function onWrite(ResourceInterface $resource, TaskInterface $task): void
     {
+        if ($resource->getResource() === null) {
+            $this->schedule($task);
+            return;
+        }
+
         if ($resource->eof()) {
             return;
         }
@@ -239,31 +244,32 @@ class Event implements SchedulerInterface, NetworkServerAwareSchedulerInterface,
                 }
 
                 $bev->setCallbacks(function (EventBufferEvent $bev, $dispatchFunction) {
-                        $buffer = new Buffer();
-                        while ($chunk = $bev->read(65535)) {
-                            if (!$chunk) {
-                                break;
-                            }
-
-                            $buffer->write($chunk);
-                            suspend();
+                    $buffer = new Buffer();
+                    while ($chunk = $bev->read(65535)) {
+                        if (!$chunk) {
+                            break;
                         }
 
-                        $output = new CallbackStream(
-                            $bev->read(...),
-                            $bev->write(...),
-                            $bev->close(...),
-                        );
-                        $this->schedule(Task::create($dispatchFunction, [$buffer, $output]));
-                    },
-                    fn () => null,
-                    function (EventBufferEvent $bev, int $events) {
-                        if ($events & EventBufferEvent::EOF) {
-                            $bev->free();
-                            unset($this->buffers[$bev->fd]);
-                        }
-                     },
-                    $dispatchFunction);
+                        $buffer->write($chunk);
+                        suspend();
+                    }
+
+                    $output = new CallbackStream(
+                        $bev->read(...),
+                        fn () => $bev->getInput()->length === 0,
+                        $bev->write(...),
+                        $bev->close(...),
+                    );
+                    $this->schedule(Task::create($dispatchFunction, [$buffer, $output]));
+                },
+                fn () => null,
+                function (EventBufferEvent $bev, int $events) {
+                    if ($events & EventBufferEvent::EOF) {
+                        $bev->free();
+                        unset($this->buffers[$bev->fd]);
+                    }
+                },
+                $dispatchFunction);
 
                 $bev->enable(TaskEvent::READ | TaskEvent::WRITE);
                 $this->buffers[$fd] = $bev;
@@ -289,6 +295,71 @@ class Event implements SchedulerInterface, NetworkServerAwareSchedulerInterface,
         NetworkAddressType $type = NetworkAddressType::NETWORK,
     ): void
     {
+        if ($protocol === NetworkProtocol::UDP) {
+            $this->nativeConnect($address, $port, $callback, $protocol, $context, $type);
+            return;
+        }
 
+        $bev = new EventBufferEvent(
+            $this->base,
+            null,
+            EventBufferEvent::OPT_CLOSE_ON_FREE | EventBufferEvent::OPT_DEFER_CALLBACKS,
+        );
+
+        $contextArray = $context?->getContextArray() ?? [];
+        if (isset($contextArray['ssl'])) {
+            $contextOptions = array_filter([
+                EventSslContext::OPT_VERIFY_PEER => $contextArray['ssl']['verify_peer'] ?? null,
+                EventSslContext::OPT_VERIFY_DEPTH => $contextArray['ssl']['verify_depth'] ?? null,
+                EventSslContext::OPT_ALLOW_SELF_SIGNED => $contextArray['ssl']['allow_self_signed'] ?? null,
+                EventSslContext::OPT_LOCAL_CERT => $contextArray['ssl']['local_cert'] ?? null,
+                EventSslContext::OPT_LOCAL_PK => $contextArray['ssl']['local_pk'] ?? null,
+                EventSslContext::OPT_PASSPHRASE => $contextArray['ssl']['passphrase'] ?? null,
+            ]);
+
+            $ctx = new EventSslContext(EventSslContext::TLS_CLIENT_METHOD, $contextOptions);
+
+            $bev = EventBufferEvent::sslSocket(
+                $this->base,
+                null,
+                $ctx,
+                EventBufferEvent::SSL_CONNECTING,
+                EventBufferEvent::OPT_CLOSE_ON_FREE | EventBufferEvent::OPT_DEFER_CALLBACKS
+            );
+        }
+
+        $buffer = new Buffer();
+        $bev->setCallbacks(
+            function (EventBufferEvent $bev) use ($buffer) {
+                while ($bev->getInput()->length > 0) {
+                    $buffer->write($bev->read(65535));
+                }
+            },
+            fn() => null,
+            function (EventBufferEvent $bev, int $events) use ($callback, $buffer) {
+                if ($events & EventBufferEvent::CONNECTED) {
+                    $this->schedule(Task::create($callback, [new CallbackStream(
+                        fn (int $size) => signal(fn (Closure $resume) => $resume($buffer->read($size) ?? false)),
+                        fn () => $buffer->size() > 0 ? $buffer->eof() : false,
+                        fn (string $data) => signal(fn (Closure $resume) => $resume($bev->write($data) ? strlen($data) : false)),
+                        function () use ($bev) {
+                            unset($this->buffers[$bev->fd]);
+                            $bev->free();
+                        }
+                    )]));
+                } else {
+                    $bev->free();
+                }
+            },
+            $callback
+        );
+
+        $bev->enable(TaskEvent::READ | TaskEvent::WRITE);
+        $bev->connect(match ($type) {
+            NetworkAddressType::NETWORK => (stripos($address, '::') !== false ? "[{$address}]" : $address) . ":{$port}",
+            NetworkAddressType::LOCAL => $address,
+        });
+
+        $this->buffers[$bev->fd] = $bev;
     }
 }

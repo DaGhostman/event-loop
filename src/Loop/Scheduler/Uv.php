@@ -17,9 +17,14 @@ use Onion\Framework\Loop\Scheduler\Types\NetworkAddressType;
 use Onion\Framework\Loop\Scheduler\Types\NetworkProtocol;
 use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Task;
+use Onion\Framework\Loop\Types\Operation;
 use Onion\Framework\Server\Interfaces\ContextInterface as ServerContext;
 use Onion\Framework\Client\Interfaces\ContextInterface as ClientContext;
 use Throwable;
+
+use function Onion\Framework\Loop\signal;
+use function Onion\Framework\Loop\suspend;
+use function Onion\Framework\Loop\is_pending;
 
 class Uv implements SchedulerInterface,
     NetworkServerAwareSchedulerInterface,
@@ -68,22 +73,14 @@ class Uv implements SchedulerInterface,
                     $result = $task->run();
 
                     if ($result instanceof Signal) {
-                        try {
-                            $this->schedule(Task::create(\Closure::fromCallable($result), [$task, $this]));
-                        } catch (Throwable $ex) {
-                            if (!$task->throw($ex)) {
-                                $this->triggerErrorHandlers($ex);
-                            }
-                        }
+                        $this->schedule(Task::create(Closure::fromCallable($result), [$task, $this]));
                         return;
                     }
                 } catch (Throwable $e) {
                     $this->triggerErrorHandlers($e);
                 }
 
-                if (!$task->isFinished()) {
-                    $this->schedule($task, $at);
-                }
+                $this->schedule($task, $at);
             });
         } else {
             uv_timer_start(
@@ -103,16 +100,20 @@ class Uv implements SchedulerInterface,
                         $task = $task->spawn();
                     }
 
-                    $result = $task->run();
+                    try {
+                        $result = $task->run();
 
-                    if ($result instanceof Signal) {
-                        $this->schedule(Task::create(\Closure::fromCallable($result), [$task, $this]));
-                        return;
+                        if ($result instanceof Signal) {
+                            $this->schedule(Task::create(Closure::fromCallable($result), [$task, $this]));
+                            return;
+                        }
+                    } catch (Throwable $e) {
+                        if (!$task->throw($e)) {
+                            $this->triggerErrorHandlers($e);
+                        }
                     }
 
-                    if (!$task->isFinished()) {
-                        $this->schedule($task, $at);
-                    }
+                    $this->schedule($task, $at);
                 }
             );
         }
@@ -120,12 +121,23 @@ class Uv implements SchedulerInterface,
 
     public function onRead(ResourceInterface $resource, TaskInterface $task): void
     {
+        if ($resource->getResource() === null) {
+            $this->schedule($task);
+            return;
+        }
+
         if ($resource->eof()) {
             return;
         }
 
         if (stream_is_local($resource->getResource())) {
-            $this->schedule($task);
+            $this->schedule(Task::create(function () use ($resource, $task) {
+                while (!is_pending($resource, Operation::READ)) {
+                    suspend();
+                }
+
+                $this->schedule($task);
+            }));
             return;
         }
 
@@ -144,12 +156,22 @@ class Uv implements SchedulerInterface,
 
     public function onWrite(ResourceInterface $resource, TaskInterface $task): void
     {
+        if ($resource->getResource() === null) {
+            $this->schedule($task);
+            return;
+        }
+
         if ($resource->eof()) {
             return;
         }
 
         if (stream_is_local($resource->getResource())) {
-            $this->schedule($task);
+            $this->schedule(Task::create(function () use ($resource, $task) {
+                while (!is_pending($resource, Operation::WRITE)) {
+                    suspend();
+                }
+                $this->schedule($task);
+            }));
             return;
         }
 
@@ -294,15 +316,14 @@ class Uv implements SchedulerInterface,
                 ?int $nbRead,
                 ?string $buffer = null,
             ) use ($dispatchFunction) {
-                // todo: test if buffer is null when no data is received to allow triggering of function at the very end of input
-
                 if (!isset($this->streams[$client])) {
                     $this->streams[$client] = new Buffer();
 
                     $this->schedule(Task::create($dispatchFunction, [
                         new CallbackStream(
-                            $this->streams[$client]->read(...),
-                            fn (string $data) => uv_write($client, $data, fn () => null),
+                            fn () => signal(fn (Closure $resume) => $resume($this->streams[$client]->read(...))),
+                            fn () => $this->streams[$client]->size() > 0 ? $this->streams[$client]->eof() : false,
+                            fn (string $data) => signal(fn (Closure $resume) => $resume(uv_write($client, $data, fn () => null))),
                             fn () => uv_read_stop($client),
                         )
                     ]));
@@ -337,7 +358,8 @@ class Uv implements SchedulerInterface,
 
                 $this->schedule(Task::create($dispatchFunction, [
                     new CallbackStream(
-                        $this->streams[$client]->read(...),
+                        fn () => signal(fn (Closure $resume) => $resume($this->streams[$client]->read(...))),
+                        fn () => $this->streams[$client]->size() > 0 ? $this->streams[$client]->eof() : false,
                         fn (string $data) => uv_udp_send($client, $data, $addr, fn () => null),
                         fn () => uv_udp_recv_stop($client)
                     )
@@ -381,22 +403,39 @@ class Uv implements SchedulerInterface,
                     function ($socket, $static) use ($callback) {
                         $buff = new Buffer();
 
-                        $schedule = fn () => $this->schedule(Task::create($callback, [new CallbackStream(
-                            $buff->read(...),
-                            fn (string $data) => uv_write($socket, $data),
-                            fn () => uv_read_stop($socket),
-                        )]));
-
-                        uv_read_start(
-                            $socket,
-                            static function ($socket, $nread, $buffer) use ($schedule, $buff) {
-                                if ($buffer === null) {
-                                    $schedule();
-                                } else {
-                                    $buff->write((string) $buffer);
+                        $this->schedule(Task::create($callback, [new CallbackStream(
+                            fn (int $size, Closure $close) => signal(function (Closure $resume) use ($buff, $socket, $size, $close) {
+                                if ($buff->size() > 0) {
+                                    $resume($buff->read($size) ?? false);
+                                    return;
                                 }
-                            }
-                        );
+
+                                $handler = set_error_handler(function () use ($resume) {
+                                    $resume(false);
+
+                                    return true;
+                                });
+
+                                uv_read_start(
+                                    $socket,
+                                    static function ($socket, $status, $buffer) use ($buff, $size, $resume, $close): void {
+                                        if ($status === \UV::EOF) {
+                                            $close();
+                                        } else if ($status >= 0) {
+                                            $buff->write((string) $buffer);
+                                        }
+
+                                        $resume($buff->read($size) ?? false);
+                                    }
+                                );
+                                set_error_handler($handler);
+                            }),
+                            fn () => $buff->size() > 0 ? $buff->eof() : false,
+                            function (string $data) use ($socket) {
+                                return signal(fn ($resume) => uv_write($socket, $data, fn (\UVTcp $sock, int $status) => $resume($status === 0 ? strlen($data) : false)));
+                            },
+                            fn () => uv_close($socket),
+                        )]));
                     },
                 ),
                 NetworkProtocol::UDP => $this->send($callback, $addr),
@@ -409,16 +448,39 @@ class Uv implements SchedulerInterface,
                     $buff = new Buffer();
 
                     $this->schedule(Task::create($callback, [new CallbackStream(
-                        $buff->read(...),
-                        fn (string $data) => uv_write($socket, $data),
-                        fn () => uv_read_stop($socket),
-                    )]));
+                        fn (int $size, Closure $close) => signal(function (Closure $resume) use ($buff, $socket, $size, $close) {
+                            if ($buff->size() > 0) {
+                                $resume($buff->read($size) ?? false);
+                                return;
+                            }
 
-                    uv_read_start(
-                        $socket,
-                        static fn ($socket, $nread, $buffer) => $buff->write((string) $buffer)
-                    );
-                },
+                            $handler = set_error_handler(function () use ($resume) {
+                                $resume(false);
+
+                                return true;
+                            });
+
+                            uv_read_start(
+                                $socket,
+                                static function ($socket, $status, $buffer) use ($buff, $size, $resume, $close): void {
+                                    if ($status === \UV::EOF) {
+                                        $close();
+                                    } else if ($status >= 0) {
+                                        $buff->write((string) $buffer);
+                                    }
+
+                                    $resume($buff->read($size) ?? false);
+                                }
+                            );
+                            set_error_handler($handler);
+                        }),
+                        fn () => $buff->size() > 0 ? $buff->eof() : false,
+                        function (string $data) use ($socket) {
+                            return signal(fn ($resume) => uv_write($socket, $data, fn (\UVTcp $sock, int $status) => $resume($status === 0 ? strlen($data) : false)));
+                        },
+                        fn () => uv_close($socket),
+                    )]));
+                }
             );
         } else {
             throw new \InvalidArgumentException("Invalid address type provided");
@@ -436,8 +498,9 @@ class Uv implements SchedulerInterface,
         $socket = uv_udp_init($this->loop);
 
         $this->schedule(Task::create($callback, [new CallbackStream(
-            $buff->read(...),
-            fn (string $data) => uv_udp_send($socket, $data, $addr),
+            fn () => signal(fn (Closure $resume) => $resume($buff->read(...))),
+            fn () => $buff->size() > 0 ? $buff->eof(...) : false,
+            fn (string $data) => signal(fn ($resume) => $resume(uv_udp_send($socket, $data, $addr))),
             fn () => uv_udp_recv_stop($socket),
         )]));
 
