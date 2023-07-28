@@ -40,9 +40,7 @@ class Channel implements ChannelInterface
                 if (!$this->open) {
                     $resume(new ChannelValue(null, $this->open));
                 } else {
-                    $this->waiting->enqueue(function (mixed $item) use ($resume) {
-                        $resume(new ChannelValue($item, $this->open));
-                    });
+                    $this->waiting->enqueue(fn (mixed $item) => $resume(new ChannelValue($item, $this->open)));
                 }
             } else {
                 $resume(
