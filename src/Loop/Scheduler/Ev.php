@@ -39,16 +39,10 @@ class Ev implements SchedulerInterface, NetworkServerAwareSchedulerInterface
                 0,
                 function ($watcher) use ($key) {
                     $task = $watcher->data;
-                    if (!$task->isPersistent()) {
-                        unset($this->tasks[$key]);
-                    }
+                    unset($this->tasks[$key]);
 
-                    if ($task->isKilled()) {
+                    if ($task->isKilled() || $task->isFinished()) {
                         return;
-                    }
-
-                    if ($task->isPersistent()) {
-                        $task = $task->spawn();
                     }
 
                     try {
@@ -58,12 +52,18 @@ class Ev implements SchedulerInterface, NetworkServerAwareSchedulerInterface
                             $this->schedule(Task::create(\Closure::fromCallable($result), [$task, $this]));
                             return;
                         }
+
+                        if (
+                            !$task->isKilled() &&
+                            $task->isFinished() &&
+                            $task->isPersistent()
+                        ) {
+                            $this->schedule($task->spawn());
+                        }
+
+                        $this->schedule($task);
                     } catch (Throwable $e) {
                         $this->triggerErrorHandlers($e);
-                    }
-
-                    if (!$task->isFinished()) {
-                        $this->schedule($task);
                     }
                 },
                 $task
@@ -72,17 +72,10 @@ class Ev implements SchedulerInterface, NetworkServerAwareSchedulerInterface
             $this->tasks[$key] = $this->loop->idle(
                 function ($watcher) use ($key) {
                     $task = $watcher->data;
+                    unset($this->tasks[$key]);
 
-                    if (!$task->isPersistent()) {
-                        unset($this->tasks[$key]);
-                    }
-
-                    if ($task->isKilled()) {
+                    if ($task->isKilled() || $task->isFinished()) {
                         return;
-                    }
-
-                    if ($task->isPersistent()) {
-                        $task = $task->spawn();
                     }
 
                     try {
@@ -91,11 +84,19 @@ class Ev implements SchedulerInterface, NetworkServerAwareSchedulerInterface
                             $this->schedule(Task::create(\Closure::fromCallable($result), [$task, $this]));
                             return;
                         }
+
+                        if (
+                            !$task->isKilled() &&
+                            $task->isFinished() &&
+                            $task->isPersistent()
+                        ) {
+                            $this->schedule($task->spawn());
+                        }
+
+                        $this->schedule($task);
                     } catch (Throwable $e) {
                         $this->triggerErrorHandlers($e);
                     }
-
-                    $this->schedule($task);
                 },
                 $task
             );
@@ -123,7 +124,7 @@ class Ev implements SchedulerInterface, NetworkServerAwareSchedulerInterface
                     unset($this->tasks[$key]);
                 }
 
-                $this->schedule($watcher->data->isPersistent() ? $watcher->data->spawn() : $watcher->data);
+                $this->schedule($watcher->data->spawn(false));
             },
             $task
         );
@@ -150,7 +151,7 @@ class Ev implements SchedulerInterface, NetworkServerAwareSchedulerInterface
                     unset($this->tasks[$key]);
                 }
 
-                $this->schedule($watcher->data->isPersistent() ? $watcher->data->spawn() : $watcher->data);
+                $this->schedule($watcher->data->spawn(false));
             },
             $task
         );

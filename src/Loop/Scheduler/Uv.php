@@ -56,17 +56,13 @@ class Uv implements SchedulerInterface,
         }
 
         if ($at === null) {
+
             uv_idle_start(uv_idle_init($this->loop), function($handle) use ($task, $at) {
-                if (!$task->isPersistent()) {
-                    uv_close($handle);
-                }
+                uv_idle_stop($handle);
+                uv_close($handle);
 
-                if ($task->isKilled()) {
+                if ($task->isKilled() || $task->isFinished()) {
                     return;
-                }
-
-                if ($task->isPersistent()) {
-                    $task = $task->spawn();
                 }
 
                 try {
@@ -76,11 +72,19 @@ class Uv implements SchedulerInterface,
                         $this->schedule(Task::create(Closure::fromCallable($result), [$task, $this]));
                         return;
                     }
+
+                    if (
+                        !$task->isKilled() &&
+                        $task->isFinished() &&
+                        $task->isPersistent()
+                    ) {
+                        $this->schedule($task->spawn());
+                    }
+
+                    $this->schedule($task, $at);
                 } catch (Throwable $e) {
                     $this->triggerErrorHandlers($e);
                 }
-
-                $this->schedule($task, $at);
             });
         } else {
             uv_timer_start(
@@ -88,16 +92,11 @@ class Uv implements SchedulerInterface,
                 (int) ($at !== null ? ($at - (hrtime(true) / 1e3)) / 1e3 : 0),
                 0,
                 function($handle) use ($task, $at) {
-                    if (!$task->isPersistent()) {
-                        uv_close($handle);
-                    }
+                    uv_timer_stop($handle);
+                    uv_close($handle);
 
-                    if ($task->isKilled()) {
+                    if ($task->isKilled() || $task->isFinished()) {
                         return;
-                    }
-
-                    if ($task->isPersistent()) {
-                        $task = $task->spawn();
                     }
 
                     try {
@@ -107,13 +106,21 @@ class Uv implements SchedulerInterface,
                             $this->schedule(Task::create(Closure::fromCallable($result), [$task, $this]));
                             return;
                         }
+
+                        if (
+                            !$task->isKilled() &&
+                            $task->isFinished() &&
+                            $task->isPersistent()
+                        ) {
+                            $this->schedule($task->spawn());
+                        }
+
+                        $this->schedule($task, $at);
                     } catch (Throwable $e) {
                         if (!$task->throw($e)) {
                             $this->triggerErrorHandlers($e);
                         }
                     }
-
-                    $this->schedule($task, $at);
                 }
             );
         }
@@ -149,7 +156,7 @@ class Uv implements SchedulerInterface,
                     uv_poll_stop($poll);
                 }
 
-                $this->schedule($task->isPersistent() ? $task->spawn() : $task);
+                $this->schedule($task->spawn(false));
             }
         );
     }
@@ -183,7 +190,7 @@ class Uv implements SchedulerInterface,
                     uv_poll_stop($poll);
                 }
 
-                $this->schedule($task->isPersistent() ? $task->spawn() : $task);
+                $this->schedule($task->spawn(false));
             }
         );
     }

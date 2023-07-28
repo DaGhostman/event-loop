@@ -67,17 +67,11 @@ class Event implements SchedulerInterface, NetworkServerAwareSchedulerInterface,
             -1,
             TaskEvent::TIMEOUT,
             function ($fd, $what, TaskInterface $task) use ($key) {
-                if (!$task->isPersistent()) {
-                    $this->tasks[$key]->free();
-                    unset($this->tasks[$key]);
-                }
+                $this->tasks[$key]->free();
+                unset($this->tasks[$key]);
 
-                if ($task->isKilled()) {
+                if ($task->isKilled() || $task->isFinished()) {
                     return;
-                }
-
-                if ($task->isPersistent()) {
-                    $task = $task->spawn();
                 }
 
                 try {
@@ -87,11 +81,19 @@ class Event implements SchedulerInterface, NetworkServerAwareSchedulerInterface,
                         $this->schedule(Task::create(Closure::fromCallable($result), [$task, $this]));
                         return;
                     }
+
+                    if (
+                        !$task->isKilled() &&
+                        $task->isFinished() &&
+                        $task->isPersistent()
+                    ) {
+                        $this->schedule($task->spawn());
+                    }
+
+                    $this->schedule($task);
                 } catch (Throwable $ex) {
                     $this->triggerErrorHandlers($ex);
                 }
-
-                $this->schedule($task);
             },
             $task,
         ))->add($at !== null ? ($at - (hrtime(true) / 1e+3)) / 1e+6 : 0);
@@ -122,7 +124,7 @@ class Event implements SchedulerInterface, NetworkServerAwareSchedulerInterface,
                     unset($this->tasks[$key]);
                 }
 
-                $this->schedule($task->isPersistent() ? $task->spawn() : $task);
+                $this->schedule($task->spawn(false));
             },
             $task,
         ))->add();
@@ -153,7 +155,7 @@ class Event implements SchedulerInterface, NetworkServerAwareSchedulerInterface,
                     unset($this->tasks[$key]);
                 }
 
-                $this->schedule($task->isPersistent() ? $task->spawn() : $task);
+                $this->schedule($task->spawn(false));
             },
             $task,
         ))->add();

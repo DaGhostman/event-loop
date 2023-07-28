@@ -121,27 +121,26 @@ class Select implements SchedulerInterface, NetworkServerAwareSchedulerInterface
             /** @var TaskInterface $task */
             $task = $frame->dequeue();
 
-            if ($task->isKilled()) {
+            if ($task->isKilled() || $task->isFinished()) {
                 continue;
-            }
-
-            if ($task->isPersistent()) {
-                // Return the parent task back to the queue for rescheduling
-                $this->schedule($task);
-                // Spawn a new task and schedule it for execution
-                $task = $task->spawn();
-                // Swap the parent with the child task for execution
-                $this->schedule($task);
             }
 
             try {
                 $result = $task->run();
 
                 if ($result instanceof Signal) {
-                    $this->queue->enqueue(
+                    $this->schedule(
                         Task::create(\Closure::fromCallable($result), [$task, $this])
                     );
                     continue;
+                }
+
+                if (
+                    !$task->isKilled() &&
+                    $task->isFinished() &&
+                    $task->isPersistent()
+                ) {
+                    $this->schedule($task->spawn());
                 }
             } catch (Throwable $ex) {
                 $this->triggerErrorHandlers($ex);
@@ -189,7 +188,7 @@ class Select implements SchedulerInterface, NetworkServerAwareSchedulerInterface
             [, $tasks] = $this->reads[$id];
 
             foreach ($tasks as $idx => $task) {
-                if ($task->isKilled()) {
+                if ($task->isKilled() || $task->isFinished()) {
                     continue;
                 }
 
@@ -202,7 +201,7 @@ class Select implements SchedulerInterface, NetworkServerAwareSchedulerInterface
             [, $tasks] = $this->writes[$id];
 
             foreach ($tasks as $idx => $task) {
-                if ($task->isKilled()) {
+                if ($task->isKilled() || $task->isFinished()) {
                     unset($this->writes[$id][1][$idx]);
                     continue;
                 }
