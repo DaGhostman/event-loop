@@ -209,8 +209,6 @@ if (!function_exists(__NAMESPACE__ . '\signal')) {
         }
 
         return Fiber::suspend(new Signal(function (TaskInterface $task, SchedulerInterface $scheduler) use ($fn) {
-            $task->suspend();
-
             try {
                 $fn(
                     fn (mixed $value = null) => $task->resume($value) && $scheduler->schedule($task),
