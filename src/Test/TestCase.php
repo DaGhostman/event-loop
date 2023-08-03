@@ -2,7 +2,7 @@
 
 namespace Onion\Framework\Test;
 
-use Onion\Framework\Loop\Scheduler;
+use Onion\Framework\Loop\Scheduler\Select as Scheduler;
 use PHPUnit\Framework\TestCase as PhpUnitTestCase;
 
 use function Onion\Framework\Loop\{coroutine, scheduler};
@@ -22,9 +22,8 @@ class TestCase extends PhpUnitTestCase
         parent::setName($this->realTestName);
 
         scheduler(new Scheduler());
-        coroutine(function () use ($args) {
-            $this->{$this->realTestName}(...$args);
-        }, $args);
+        scheduler()->addErrorHandler($this->checkExceptionExpectations(...));
+        coroutine($this->{$this->realTestName}(...), $args);
         scheduler()->start();
     }
 

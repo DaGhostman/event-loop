@@ -2,18 +2,30 @@
 declare(strict_types=1);
 
 namespace Onion\Framework\Loop\Scheduler\Traits;
+
+use Closure;
 use LogicException;
 use Onion\Framework\Loop\Interfaces\SchedulerInterface;
-use Onion\Framework\Loop\Task;
 use Throwable;
 
 trait SchedulerErrorHandler
 {
     private array $errorHandlers = [];
 
-    public function onError(callable $handler): void
+    public function addErrorHandler(Closure $handler): void
     {
         $this->errorHandlers[] = $handler;
+    }
+
+    public function removeHandler(Closure $handler): void
+    {
+        $key = array_search($handler, $this->errorHandlers, true);
+
+        if ($key !== false) {
+            return;
+        }
+
+        unset($this->errorHandlers[$key]);
     }
 
     protected function triggerErrorHandlers(Throwable $ex): void

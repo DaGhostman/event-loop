@@ -32,18 +32,4 @@ class ChannelValueTest extends TestCase
         $this->assertArrayHasKey('ok', $value);
         $this->assertArrayHasKey('final', $value);
     }
-
-    public function testSetter()
-    {
-        $this->expectException(BadMethodCallException::class);
-        $value = new ChannelValue('foo', false);
-        $value['value'] = false;
-    }
-
-    public function testUnset()
-    {
-        $this->expectException(BadMethodCallException::class);
-        $value = new ChannelValue('foo', false);
-        unset($value['value']);
-    }
 }

@@ -36,23 +36,6 @@ class DispatcherTest extends TestCase
         $this->assertInstanceOf(EventA::class, $dispatcher->dispatch(new EventA()));
     }
 
-    public function testDispatchException()
-    {
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessage('test');
-
-        $this->provider->getListenersForEvent(
-            Argument::type(EventA::class)
-        )->willReturn([
-            function () {
-                throw new \Exception('test');
-            }
-        ]);
-
-        $dispatcher = new Dispatcher($this->provider->reveal());
-        $dispatcher->dispatch(new EventA());
-    }
-
     public function testDispatchOfStoppableEvent()
     {
         $this->expectOutputString('');

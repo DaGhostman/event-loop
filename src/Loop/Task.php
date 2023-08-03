@@ -4,8 +4,8 @@ namespace Onion\Framework\Loop;
 
 use Closure;
 use Fiber;
-use Onion\Framework\Loop\Debug\TraceableTask;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
+use Onion\Framework\Loop\Util\Registry;
 use Onion\Framework\Promise\Deferred;
 use Onion\Framework\Promise\Interfaces\DeferredInterface;
 use Throwable;
@@ -15,14 +15,27 @@ class Task implements TaskInterface
     private ?Throwable $exception = null;
     private mixed $value = null;
 
-    protected bool $killed = false;
-
     private ?DeferredInterface $deferred = null;
+    private Fiber $coroutine;
 
-    public function __construct(
-        private readonly Fiber $coroutine,
+    private array $metadata;
+
+    private function __construct(
+        private readonly Closure $fn,
         private readonly mixed $args,
+        private readonly Registry $state,
+        private readonly bool $persistent = false,
     ) {
+        $this->coroutine = new Fiber($fn);
+        $this->metadata = [
+            'ticks' => 0,
+            'duration' => 0.0,
+        ];
+    }
+
+    public function isPersistent(): bool
+    {
+        return $this->persistent;
     }
 
     public function run(): mixed
@@ -31,11 +44,16 @@ class Task implements TaskInterface
             return $this->coroutine->throw($this->exception);
         }
 
+        $tick = \hrtime(true);
         try {
             if (!$this->coroutine->isStarted()) {
                 $result = $this->coroutine->start(...$this->args);
+                $this->metadata['ticks']++;
+                $this->metadata['duration'] += \hrtime(true) - $tick;
             } else {
                 $result = $this->coroutine->resume($this->value);
+                $this->metadata['ticks']++;
+                $this->metadata['duration'] += \hrtime(true) - $tick;
             }
 
             if ($this->exception === null && $this->coroutine->isTerminated()) {
@@ -59,7 +77,7 @@ class Task implements TaskInterface
 
     public function resume(mixed $value = null): bool
     {
-        if ($this->isKilled()) {
+        if ($this->isKilled() || $this->isFinished()) {
             return false;
         }
 
@@ -70,7 +88,7 @@ class Task implements TaskInterface
 
     public function throw(Throwable $exception): bool
     {
-        if ($this->isKilled()) {
+        if ($this->isKilled() || $this->isFinished()) {
             return false;
         }
 
@@ -81,12 +99,12 @@ class Task implements TaskInterface
 
     public function kill(): void
     {
-        $this->killed = true;
+        $this->state()->set('killed', true);
     }
 
     public function isKilled(): bool
     {
-        return $this->killed || $this->coroutine->isTerminated();
+        return $this->state->get('killed', false);
     }
 
     public function isFinished(): bool
@@ -123,16 +141,50 @@ class Task implements TaskInterface
 
     public function sync(): mixed
     {
-        while (!$this->coroutine->isTerminated()) {
-            suspend();
-        }
+        return signal(function ($resume) {
+            while (!$this->coroutine->isTerminated()) {
+                suspend();
+            }
 
-        return $this->coroutine->getReturn();
+            $resume($this->coroutine->getReturn());
+        });
     }
 
-    public static function create(callable $fn, array $args = []): self
+    public function spawn(bool $persistent = null): TaskInterface
     {
-        return EVENT_LOOP_TRACE_TASKS ?
-            new TraceableTask(new Fiber($fn), $args) : new Task(new Fiber($fn), $args);
+        return new self($this->fn, $this->args, state: $this->state, persistent: $persistent ?? $this->persistent);
+    }
+
+    public static function create(Closure $fn, array $args = [], bool $persistent = false): self
+    {
+        return new Task($fn, $args, new Registry(), $persistent);
+    }
+
+    public static function current(): TaskInterface
+    {
+        return signal(function (Closure $resume, TaskInterface $task) {
+            $resume($task);
+        });
+    }
+
+    public static function state(): Registry
+    {
+        return signal(function (Closure $resume, TaskInterface $task) {
+            /** @var static $task */
+            $resume($task->state);
+        });
+    }
+
+    public static function info(): array
+    {
+        return signal(function (Closure $resume, TaskInterface $task) {
+            /** @var static $task */
+            $resume($task->metadata);
+        });
+    }
+
+    public static function stop(): void
+    {
+        signal(fn (Closure $resume, TaskInterface $task)  => $resume($task->kill()));
     }
 }
