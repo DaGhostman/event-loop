@@ -12,7 +12,7 @@ use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Task;
 use Throwable;
 
-class Ev implements SchedulerInterface, NetworkServerAwareSchedulerInterface
+class Ev implements SchedulerInterface
 {
     private readonly EvLoop $loop;
 

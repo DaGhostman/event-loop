@@ -13,7 +13,6 @@ use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Task;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Loop\Scheduler\Traits\{SchedulerErrorHandler, StreamNetworkUtil};
-use Onion\Framework\Loop\Scheduler\Interfaces\NetworkServerAwareSchedulerInterface;
 use Onion\Framework\Loop\Resources\Buffer;
 use Throwable;
 
@@ -21,15 +20,14 @@ use Onion\Framework\Server\Interfaces\ContextInterface as ServerContext;
 use Onion\Framework\Client\Interfaces\ContextInterface as ClientContext;
 use Onion\Framework\Loop\Resources\CallbackStream;
 use Closure;
-use Onion\Framework\Loop\Scheduler\Types\NetworkProtocol;
-use Onion\Framework\Loop\Scheduler\Types\NetworkAddressType;
 use EventSslContext;
-use Onion\Framework\Loop\Scheduler\Interfaces\NetworkClientAwareSchedulerInterface;
 
 use function Onion\Framework\Loop\suspend;
 use function Onion\Framework\Loop\signal;
+use Onion\Framework\Loop\Types\NetworkProtocol;
+use Onion\Framework\Loop\Types\NetworkAddress;
 
-class Event implements SchedulerInterface, NetworkServerAwareSchedulerInterface, NetworkClientAwareSchedulerInterface
+class Event implements SchedulerInterface
 {
     private EventBase $base;
     private array $tasks = [];
@@ -206,9 +204,9 @@ class Event implements SchedulerInterface, NetworkServerAwareSchedulerInterface,
         Closure $callback,
         NetworkProtocol $protocol = NetworkProtocol::TCP,
         ?ServerContext $context = null,
-        NetworkAddressType $type = NetworkAddressType::NETWORK,
+        NetworkAddress $type = NetworkAddress::NETWORK,
     ): string {
-        if ($protocol !== NetworkProtocol::TCP && $type !== NetworkAddressType::NETWORK) {
+        if ($protocol !== NetworkProtocol::TCP && $type !== NetworkAddress::NETWORK) {
             return $this->nativeOpen($address, $port, $callback, $protocol, $context, $type);
         }
 
@@ -294,7 +292,7 @@ class Event implements SchedulerInterface, NetworkServerAwareSchedulerInterface,
         Closure $callback,
         NetworkProtocol $protocol = NetworkProtocol::TCP,
         ?ClientContext $context = null,
-        NetworkAddressType $type = NetworkAddressType::NETWORK,
+        NetworkAddress $type = NetworkAddress::NETWORK,
     ): void
     {
         if ($protocol === NetworkProtocol::UDP) {
@@ -358,8 +356,8 @@ class Event implements SchedulerInterface, NetworkServerAwareSchedulerInterface,
 
         $bev->enable(TaskEvent::READ | TaskEvent::WRITE);
         $bev->connect(match ($type) {
-            NetworkAddressType::NETWORK => (stripos($address, '::') !== false ? "[{$address}]" : $address) . ":{$port}",
-            NetworkAddressType::LOCAL => $address,
+            NetworkAddress::NETWORK => (stripos($address, '::') !== false ? "[{$address}]" : $address) . ":{$port}",
+            NetworkAddress::LOCAL => $address,
         });
 
         $this->buffers[$bev->fd] = $bev;

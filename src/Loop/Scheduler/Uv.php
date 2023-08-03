@@ -9,14 +9,12 @@ use Onion\Framework\Loop\Interfaces\SchedulerInterface;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
 use Onion\Framework\Loop\Resources\Buffer;
 use Onion\Framework\Loop\Resources\CallbackStream;
-use Onion\Framework\Loop\Scheduler\Interfaces\NetworkClientAwareSchedulerInterface;
-use Onion\Framework\Loop\Scheduler\Interfaces\NetworkServerAwareSchedulerInterface;
 use Onion\Framework\Loop\Scheduler\Traits\SchedulerErrorHandler;
 use Onion\Framework\Loop\Scheduler\Traits\StreamNetworkUtil;
-use Onion\Framework\Loop\Scheduler\Types\NetworkAddressType;
-use Onion\Framework\Loop\Scheduler\Types\NetworkProtocol;
 use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Task;
+use Onion\Framework\Loop\Types\NetworkAddress;
+use Onion\Framework\Loop\Types\NetworkProtocol;
 use Onion\Framework\Loop\Types\Operation;
 use Onion\Framework\Server\Interfaces\ContextInterface as ServerContext;
 use Onion\Framework\Client\Interfaces\ContextInterface as ClientContext;
@@ -26,9 +24,7 @@ use function Onion\Framework\Loop\signal;
 use function Onion\Framework\Loop\suspend;
 use function Onion\Framework\Loop\is_pending;
 
-class Uv implements SchedulerInterface,
-    NetworkServerAwareSchedulerInterface,
-    NetworkClientAwareSchedulerInterface
+class Uv implements SchedulerInterface
 {
     private readonly mixed $loop;
     private bool $running = false;
@@ -229,13 +225,13 @@ class Uv implements SchedulerInterface,
         Closure $callback,
         NetworkProtocol $protocol = NetworkProtocol::TCP,
         ServerContext $context = null,
-        NetworkAddressType $type = NetworkAddressType::NETWORK
+        NetworkAddress $type = NetworkAddress::NETWORK
     ): string {
-        if ($context !== null || ($type === NetworkAddressType::LOCAL && $protocol === NetworkProtocol::UDP)) {
+        if ($context !== null || ($type === NetworkAddress::LOCAL && $protocol === NetworkProtocol::UDP)) {
             return $this->nativeOpen($address, $port, $callback, $protocol, $context, $type);
         }
 
-        if ($type === NetworkAddressType::NETWORK) {
+        if ($type === NetworkAddress::NETWORK) {
             /** @var \UVSockAddr $addr */
             $addr = filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)
                 ? uv_ip6_addr($address, $port)
@@ -261,7 +257,7 @@ class Uv implements SchedulerInterface,
             };
         }
 
-        if ($type === NetworkAddressType::LOCAL) {
+        if ($type === NetworkAddress::LOCAL) {
             return $this->listen(
                 $this->createPipeSocket($address),
                 function (\UVPipe $socket): \UVPipe {
@@ -387,16 +383,16 @@ class Uv implements SchedulerInterface,
         Closure $callback,
         NetworkProtocol $protocol = NetworkProtocol::TCP,
         ?ClientContext $context = null,
-        NetworkAddressType $type = NetworkAddressType::NETWORK,
+        NetworkAddress $type = NetworkAddress::NETWORK,
     ): void
     {
-        if ($context !== null || ($type === NetworkAddressType::LOCAL && $protocol === NetworkProtocol::UDP)) {
+        if ($context !== null || ($type === NetworkAddress::LOCAL && $protocol === NetworkProtocol::UDP)) {
             $this->nativeConnect($address, $port, $callback, $protocol, $context, $type);
 
             return;
         }
 
-        if ($type === NetworkAddressType::NETWORK) {
+        if ($type === NetworkAddress::NETWORK) {
             /** @var \UVSockAddr $addr */
             $addr = filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)
                 ? uv_ip6_addr($address, $port)
@@ -447,7 +443,7 @@ class Uv implements SchedulerInterface,
                 ),
                 NetworkProtocol::UDP => $this->send($callback, $addr),
             };
-        } else if ($type === NetworkAddressType::LOCAL) {
+        } else if ($type === NetworkAddress::LOCAL) {
             uv_pipe_connect(
                 uv_pipe_init($this->loop),
                 $address,

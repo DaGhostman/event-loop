@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Onion\Framework\Loop\Scheduler;
 
 use Onion\Framework\Loop\Interfaces\{ResourceInterface, SchedulerInterface, TaskInterface};
-use Onion\Framework\Loop\Scheduler\Interfaces\NetworkClientAwareSchedulerInterface;
-use Onion\Framework\Loop\Scheduler\Interfaces\NetworkServerAwareSchedulerInterface;
 use Onion\Framework\Loop\Scheduler\Traits\SchedulerErrorHandler;
 use Onion\Framework\Loop\Scheduler\Traits\StreamNetworkUtil;
 use Onion\Framework\Loop\Signal;
@@ -14,7 +12,7 @@ use Onion\Framework\Loop\Task;
 use SplQueue;
 use Throwable;
 
-class Select implements SchedulerInterface, NetworkServerAwareSchedulerInterface, NetworkClientAwareSchedulerInterface
+class Select implements SchedulerInterface
 {
     private SplQueue $queue;
     /**
