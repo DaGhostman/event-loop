@@ -10,7 +10,6 @@ use function \Onion\Framework\Loop\suspend;
 class CallbackStream implements ResourceInterface
 {
     private bool $closed = false;
-	private mixed $resource = null;
 
     public function __construct(
         private readonly Closure $reader,
@@ -18,7 +17,6 @@ class CallbackStream implements ResourceInterface
         private readonly Closure $writer,
         private readonly Closure $closer,
     ) {
-		$this->resource = fopen('php://temp', 'r+');
 	}
 
     public function write(string $data): int|false
@@ -46,7 +44,6 @@ class CallbackStream implements ResourceInterface
     {
         $this->closed = true;
         ($this->closer)();
-		fclose($this->resource);
 
         return true;
 	}
