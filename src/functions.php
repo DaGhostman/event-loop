@@ -71,7 +71,7 @@ if (!function_exists(__NAMESPACE__ . '\write')) {
      * @param bool $sync Should the calling coroutine block until completion
      * or return immediately.
      *
-     * @return int|null The number of bytes written in blocking mode (default) or null in non-blocking
+     * @return int|null The number of bytes written in blocking mode (default) or null when in non-blocking or error occurred while writing
      *
      * @throws FiberError
      * @throws Throwable
@@ -97,7 +97,7 @@ if (!function_exists(__NAMESPACE__ . '\write')) {
                 $size += $len;
             }
 
-            return $size;
+            return $size !== false ? $size : null;
         };
 
         return $sync ?
