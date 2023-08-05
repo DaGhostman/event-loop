@@ -15,7 +15,7 @@ use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Loop\Interfaces\SchedulerInterface;
 use Onion\Framework\Loop\Task;
 
-use function Onion\Framework\Loop\{suspend, buffer, signal};
+use function Onion\Framework\Loop\{suspend, buffer, signal, write};
 
 trait StreamNetworkUtil
 {
@@ -160,19 +160,14 @@ trait StreamNetworkUtil
 
             $this->read($connection, static function (ResourceInterface $resource) use ($dispatch) {
                 $buffer = buffer($resource);
-                    $dispatch(new CallbackStream(
-                        $buffer->read(...),
-                        fn () => $buffer->size() > 0 ? $buffer->eof() : false,
-                        static function (string $data) use ($resource) {
-                            $size = strlen($data);
-                            $bytes = 0;
-                            while ($bytes < $size) {
-                                $bytes += $resource->write(substr($data, $bytes));
-                                suspend();
-                            }
-                        },
-                        $resource->close(...))
-                    );
+                $dispatch(new CallbackStream(
+                    $buffer->read(...),
+                    fn () => $buffer->size() > 0 ? $buffer->eof() : false,
+                    static function (string $data) use ($resource) {
+                        return write($resource, $data) ?? false;
+                    },
+                    $resource->close(...),
+                ));
             }, false);
         });
 
@@ -191,29 +186,15 @@ trait StreamNetworkUtil
         $sockets = $this->createClientSocket($address, $port, $protocol, $context, $type);
 
         $buffer = buffer($sockets);
-
-        $this->read($sockets, fn () => $buffer->write($sockets->read(65535)), true);
-
         $this->write(
             $sockets,
             fn () => $this->queue($callback, new CallbackStream(
                 fn (int $size) => signal(fn (Closure $resume) => $resume($buffer->read($size))),
-                    fn () => $buffer->size() > 0 ? $buffer->eof() : false,
-                    fn (string $data) => signal(static function (Closure $resume) use ($data, $sockets) {
-                        $size = strlen($data);
-                        $bytes = 0;
-                        while ($bytes < $size) {
-                            $b = $sockets->write(substr($data, $bytes));
-                            if ($b === false) {
-                                return $resume(false);
-                            }
-                            $bytes += $b;
-                            suspend();
-                        }
-
-                        $resume($bytes);
-                    }),
-                    $sockets->close(...)
+                fn () => $buffer->size() > 0 ? $buffer->eof() : false,
+                static function (string $data) use ($sockets) {
+                    return write($sockets, $data) ?? false;
+                },
+                $sockets->close(...),
                 ),
                 false
             ),
