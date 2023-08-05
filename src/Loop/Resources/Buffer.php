@@ -17,15 +17,15 @@ class Buffer implements ResourceInterface
     ) {
     }
 
-    public function read(int $length): ?string
+    public function read(int $length): string|false
     {
         $current = substr($this->contents, $this->cursor, $length);
         $this->cursor += strlen($current);
 
-        return $current ?: null;
+        return $current;
     }
 
-    public function write(string $data): int
+    public function write(string $data): int|false
     {
         $length = strlen($data);
         if ($this->limit !== -1 && $this->limit < ($this->size + $length)) {
