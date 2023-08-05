@@ -29,6 +29,9 @@ class Select implements SchedulerInterface
      */
     private array $signals;
 
+    private int $tasks = 0;
+    private int $nextTickAt = 0;
+
     // resourceID => [socket, tasks]
     protected array $reads = [];
     protected array $writes = [];
@@ -46,8 +49,10 @@ class Select implements SchedulerInterface
     public function schedule(TaskInterface $task, int $at = null): void
     {
         if ($at === null) {
+            $this->tasks++;
             $this->queue->enqueue($task);
         } else {
+            $this->nextTickAt = $this->nextTickAt === 0 ? $at : min($at, $this->nextTickAt);
             if (!isset($this->timers[$at])) {
                 $this->timers[$at] = [];
                 ksort($this->timers);
@@ -118,6 +123,7 @@ class Select implements SchedulerInterface
         while (!$frame->isEmpty()) {
             /** @var TaskInterface $task */
             $task = $frame->dequeue();
+            $this->tasks--;
 
             if ($task->isKilled() || $task->isFinished()) {
                 continue;
@@ -213,11 +219,7 @@ class Select implements SchedulerInterface
 
     protected function timerPoll(int $now): void
     {
-        $first = array_key_first($this->timers);
-        if ($first > $now) {
-            return;
-        }
-
+        $this->nextTickAt = 0;
         foreach ($this->timers as $ts => $tasks) {
             if ($ts <= $now) {
                 foreach ($tasks as $task) {
@@ -226,6 +228,7 @@ class Select implements SchedulerInterface
                 unset($this->timers[$ts]);
                 continue;
             }
+            $this->nextTickAt = $ts;
 
             break;
         }
@@ -234,12 +237,14 @@ class Select implements SchedulerInterface
     protected function poll(): void
     {
         $tick = (int) (hrtime(true) / 1e+3);
-        $isEmpty = $this->queue->isEmpty();
+        $isEmpty = $this->tasks === 0;
         $timeout = $isEmpty ? EVENT_LOOP_STREAM_IDLE_TIMEOUT : 0;
-        if (count($this->timers) > 0 && $isEmpty) {
-            $diff = min(array_keys($this->timers)) - $tick;
+        if ($this->nextTickAt > 0 && $isEmpty) {
+            $diff = $this->nextTickAt - $tick;
             $timeout = (int) ($diff <= 0 ? 0 : $diff);
         }
+
+        $timeout = $timeout > EVENT_LOOP_STREAM_IDLE_TIMEOUT ? EVENT_LOOP_STREAM_IDLE_TIMEOUT : $timeout;
 
         $this->timerPoll($tick);
         $this->tasksPoll();
@@ -248,7 +253,7 @@ class Select implements SchedulerInterface
         if (
             !$this->reads &&
             !$this->writes &&
-            $this->queue->isEmpty() &&
+            $this->tasks === 0 &&
             !$this->timers
         ) {
             $this->started = false;
