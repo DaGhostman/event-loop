@@ -508,7 +508,7 @@ if (!function_exists(__NAMESPACE__ . '\pipe')) {
 if (!function_exists(__NAMESPACE__ . '\buffer')) {
     function buffer(ResourceInterface $resource, int $limit = -1): Buffer {
         $buffer = new Buffer($limit);
-        read($resource, static function (ResourceInterface $resource, Buffer $buffer) {
+        read($resource, static function (ResourceInterface $resource) use (&$buffer) {
             while ($chunk = $resource->read(65535)) {
                 $buffer->write($chunk);
                 suspend();
