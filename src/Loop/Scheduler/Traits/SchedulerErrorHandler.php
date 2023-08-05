@@ -17,7 +17,7 @@ trait SchedulerErrorHandler
         $this->errorHandlers[] = $handler;
     }
 
-    public function removeHandler(Closure $handler): void
+    public function removeErrorHandler(Closure $handler): void
     {
         $key = array_search($handler, $this->errorHandlers, true);
 
