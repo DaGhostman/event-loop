@@ -144,7 +144,7 @@ class Select implements SchedulerInterface
                     $task->isFinished() &&
                     $task->isPersistent()
                 ) {
-                    $this->schedule($task->spawn());
+                    $this->schedule($task->spawn(false));
                 }
             } catch (Throwable $ex) {
                 $this->triggerErrorHandlers($ex);
@@ -198,7 +198,7 @@ class Select implements SchedulerInterface
                     continue;
                 }
 
-                $this->schedule($task->isPersistent() ? $task->spawn() : $task);
+                $this->schedule($task->isPersistent() ? $task->spawn(false) : $task);
             }
         }
 
@@ -212,7 +212,7 @@ class Select implements SchedulerInterface
                     continue;
                 }
 
-                $this->schedule($task->isPersistent() ? $task->spawn() : $task);
+                $this->schedule($task->isPersistent() ? $task->spawn(false) : $task);
             }
         }
     }
