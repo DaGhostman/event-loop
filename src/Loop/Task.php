@@ -99,7 +99,7 @@ class Task implements TaskInterface
 
     public function kill(): void
     {
-        $this->state()->set('killed', true);
+        $this->state->set('killed', true);
     }
 
     public function isKilled(): bool
