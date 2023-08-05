@@ -106,6 +106,9 @@ trait StreamNetworkUtil
     protected function accept(ResourceInterface $socket, bool $secure = false): ?ResourceInterface
     {
         $client = stream_socket_accept($socket->getResource(), null, peer_name: $peer);
+        if (!$client) {
+            return null;
+        }
 
         stream_set_blocking($client, false);
 
@@ -157,6 +160,10 @@ trait StreamNetworkUtil
 
         $this->read($socket, function (ResourceInterface $resource) use ($accept, $dispatch, $isSecure) {
             $connection = $accept($resource, $isSecure);
+
+            if (!$connection) {
+                return;
+            }
 
             $this->read($connection, static function (ResourceInterface $resource) use ($dispatch) {
                 $buffer = buffer($resource);
