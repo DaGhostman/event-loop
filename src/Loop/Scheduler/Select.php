@@ -172,11 +172,13 @@ class Select implements SchedulerInterface
             $wSocks[] = $socket;
         }
 
-        $timeout *= 1000;
+        if ($timeout !== 0) {
+            $timeout /= 1000;
+        }
 
         if (
             (empty($rSocks) && empty($wSocks)) ||
-            @!stream_select($rSocks, $wSocks, $eSocks, $timeout !== null ? 10 : null, $timeout)
+            @!stream_select($rSocks, $wSocks, $eSocks, $timeout !== null ? 0 : null, $timeout)
         ) {
             return;
         }
