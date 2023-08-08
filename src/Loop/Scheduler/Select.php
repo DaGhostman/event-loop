@@ -184,7 +184,7 @@ class Select implements SchedulerInterface
 
         if (
             (empty($rSocks) && empty($wSocks)) ||
-            @!stream_select($rSocks, $wSocks, $eSocks, $timeout !== null ? 0 : null, $timeout)
+            @!stream_select($rSocks, $wSocks, $eSocks, $timeout !== null ? 0 : null, (int) $timeout)
         ) {
             return;
         }
