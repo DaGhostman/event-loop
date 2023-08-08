@@ -168,11 +168,9 @@ trait StreamNetworkUtil
             $this->read($connection, static function (ResourceInterface $resource) use ($dispatch) {
                 $buffer = buffer($resource);
                 $dispatch(new CallbackStream(
-                    $buffer->read(...),
-                    fn () => $buffer->size() > 0 ? $buffer->eof() : false,
-                    static function (string $data) use ($resource) {
-                        return write($resource, $data) ?? false;
-                    },
+                    static fn (int $size) => signal(fn (Closure $resume) => $resume($buffer->read($size))),
+                    static fn () => $buffer->size() > 0 ? $buffer->eof() : false,
+                    static fn (string $data) => write($resource, $data) ?? false,
                     $resource->close(...),
                 ));
             }, false);
@@ -190,21 +188,17 @@ trait StreamNetworkUtil
         NetworkAddress $type = NetworkAddress::NETWORK,
     ): void
     {
-        $sockets = $this->createClientSocket($address, $port, $protocol, $context, $type);
+        $resource = $this->createClientSocket($address, $port, $protocol, $context, $type);
 
-        $buffer = buffer($sockets);
+        $buffer = buffer($resource);
         $this->write(
-            $sockets,
+            $resource,
             fn () => $this->queue($callback, new CallbackStream(
-                fn (int $size) => signal(fn (Closure $resume) => $resume($buffer->read($size))),
-                fn () => $buffer->size() > 0 ? $buffer->eof() : false,
-                static function (string $data) use ($sockets) {
-                    return write($sockets, $data) ?? false;
-                },
-                $sockets->close(...),
-                ),
-                false
-            ),
+                static fn (int $size) => signal(fn (Closure $resume) => $resume($buffer->read($size))),
+                static fn () => $buffer->size() > 0 ? $buffer->eof() : false,
+                static fn (string $data) => write($resource, $data) ?? false,
+                $resource->close(...),
+            )),
             false,
         );
     }
