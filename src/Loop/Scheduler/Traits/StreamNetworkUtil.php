@@ -15,7 +15,7 @@ use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Loop\Interfaces\SchedulerInterface;
 use Onion\Framework\Loop\Task;
 
-use function Onion\Framework\Loop\{suspend, buffer, signal, write};
+use function Onion\Framework\Loop\{buffer, signal, write};
 
 trait StreamNetworkUtil
 {
@@ -39,10 +39,12 @@ trait StreamNetworkUtil
         NetworkAddress $type
     ): ResourceInterface
     {
-        $ctx = null;
-        if ($context !== null) {
-            $ctx = stream_context_create($context->getContextArray());
-        }
+
+        $ctx = stream_context_create(array_merge([
+            'socket' => [
+                'tcp_nodelay' => true,
+            ]
+        ], $context->getContextArray()));
 
         $socket = match ($protocol) {
             NetworkProtocol::TCP => match ($type) {
@@ -71,14 +73,15 @@ trait StreamNetworkUtil
         string $address,
         int $port,
         NetworkProtocol $protocol,
-        ?ServerContext $context,
+        ?ClientContext $context,
         NetworkAddress $type
     ): ResourceInterface
     {
-        $ctx = null;
-        if ($context !== null) {
-            $ctx = stream_context_create($context->getContextArray());
-        }
+        $ctx = stream_context_create(array_merge([
+            'socket' => [
+                'tcp_nodelay' => true,
+            ]
+        ], $context->getContextArray()));
 
         $socket = stream_socket_client(match ($protocol) {
             NetworkProtocol::TCP => match ($type) {
@@ -87,7 +90,7 @@ trait StreamNetworkUtil
                 default => throw new \InvalidArgumentException("Invalid address type provided"),
             },
             NetworkProtocol::UDP => match ($type) {
-                NetworkAddress::NETWORK => "udp://{$address}",
+                NetworkAddress::NETWORK => "udp://{$address}:{$port}",
                 NetworkAddress::LOCAL => "udg://{$address}",
                 default => throw new \InvalidArgumentException("Invalid address type provided"),
             },
@@ -98,9 +101,11 @@ trait StreamNetworkUtil
             throw new \RuntimeException($error, $errno);
         }
 
-        stream_set_blocking($socket, false);
+        $client = new Socket($socket, stream_socket_get_name($socket, false));
+        $client->unblock();
+        $client->negotiateSecurity();
 
-        return new Socket($socket, stream_socket_get_name($socket, false));
+        return $client;
     }
 
     protected function accept(ResourceInterface $socket, bool $secure = false): ?ResourceInterface
@@ -110,20 +115,12 @@ trait StreamNetworkUtil
             return null;
         }
 
-        stream_set_blocking($client, false);
+        $client = new Socket($client, $peer);
 
-        if ($secure) {
-            $negotiation = 0;
-            do {
-                $negotiation = stream_socket_enable_crypto($client, true, STREAM_CRYPTO_METHOD_TLSv1_2_SERVER | STREAM_CRYPTO_METHOD_TLSv1_3_SERVER);
-            } while ($negotiation === 0);
+        $client->unblock();
+        $client->negotiateSecurity();
 
-            if ($negotiation === false) {
-                throw new \RuntimeException("Failed to establish a secure connection");
-            }
-        }
-
-        return new Socket($client, $peer);
+        return $client;
     }
 
     protected function read(ResourceInterface $socket, Closure $cb, bool $persistent = true): void
@@ -156,10 +153,9 @@ trait StreamNetworkUtil
             };
 
         $dispatch = fn (...$args) => $this->queue($callback, ...$args);
-        $isSecure = isset(($context?->getContextArray() ?? [])['ssl']);
 
-        $this->read($socket, function (ResourceInterface $resource) use ($accept, $dispatch, $isSecure) {
-            $connection = $accept($resource, $isSecure);
+        $this->read($socket, function (ResourceInterface $resource) use ($accept, $dispatch) {
+            $connection = $accept($resource);
 
             if (!$connection) {
                 return;
