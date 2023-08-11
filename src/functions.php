@@ -96,7 +96,6 @@ if (!function_exists(__NAMESPACE__ . '\write')) {
 
                 $size += $len;
             }
-
             return $size !== false ? $size : null;
         };
 
@@ -506,12 +505,11 @@ if (!function_exists(__NAMESPACE__ . '\pipe')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\buffer')) {
-    function buffer(ResourceInterface $resource, int $limit = -1): Buffer {
+    function buffer(ResourceInterface $resource, int $limit = -1, int $chunk = 4096): Buffer {
         $buffer = new Buffer($limit);
-        read($resource, static function (ResourceInterface $resource) use (&$buffer) {
-            while ($chunk = $resource->read(65535)) {
-                $buffer->write($chunk);
-                suspend();
+        read($resource, static function (ResourceInterface $resource) use (&$buffer, &$chunk) {
+            while (!$resource->eof()) {
+                write($buffer, $resource->read($chunk));
             }
         }, false);
 
