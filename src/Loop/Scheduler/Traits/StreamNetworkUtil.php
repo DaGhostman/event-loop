@@ -105,7 +105,7 @@ trait StreamNetworkUtil
             throw new \RuntimeException($error, $errno);
         }
 
-        $client = new Socket($socket, stream_socket_get_name($socket, false));
+        $client = new Socket($socket, stream_socket_get_name($socket, true));
         $client->unblock();
         $client->negotiateSecurity(self::CLIENT_SECURITY_METHODS);
 
