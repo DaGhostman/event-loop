@@ -407,38 +407,19 @@ class Uv implements SchedulerInterface
                         $buff = new Buffer();
 
                         $this->schedule(Task::create($callback, [new CallbackStream(
-                            fn (int $size, Closure $close) => signal(function (Closure $resume) use ($buff, $socket, $size, $close) {
-                                if ($buff->size() > 0) {
-                                    $resume($buff->read($size) ?? false);
-                                    return;
-                                }
-
-                                $handler = set_error_handler(function () use ($resume) {
-                                    $resume(false);
-
-                                    return true;
-                                });
-
-                                uv_read_start(
-                                    $socket,
-                                    static function ($socket, $status, $buffer) use ($buff, $size, $resume, $close): void {
-                                        if ($status === \UV::EOF) {
-                                            $close();
-                                        } else if ($status >= 0) {
-                                            $buff->write((string) $buffer);
-                                        }
-
-                                        $resume($buff->read($size) ?? false);
-                                    }
-                                );
-                                set_error_handler($handler);
-                            }),
-                            fn () => $buff->size() > 0 ? $buff->eof() : false,
-                            function (string $data) use ($socket) {
-                                return signal(fn ($resume) => uv_write($socket, $data, fn (\UVTcp $sock, int $status) => $resume($status === 0 ? strlen($data) : false)));
-                            },
-                            fn () => uv_close($socket),
+                            static fn (int $size) => signal(fn (Closure $resume) => $resume($buff->read($size))),
+                            static fn () => $buff->size() > 0 ? $buff->eof() : false,
+                            static fn (string $data) => signal(fn ($resume) => uv_write($socket, $data, fn (\UVTcp $sock, int $status) => $resume($status === 0 ? strlen($data) : false))),
+                            static fn () => uv_close($socket),
                         )]));
+
+                        uv_read_start(
+                            $socket,
+                            static fn ($socket, $status, $buffer) => match ($status) {
+                                \UV::EOF => uv_close($socket),
+                                default => $buff->write((string) $buffer),
+                            },
+                        );
                     },
                 ),
                 NetworkProtocol::UDP => $this->send($callback, $addr),
@@ -501,15 +482,16 @@ class Uv implements SchedulerInterface
         $socket = uv_udp_init($this->loop);
 
         $this->schedule(Task::create($callback, [new CallbackStream(
-            fn () => signal(fn (Closure $resume) => $resume($buff->read(...))),
-            fn () => $buff->size() > 0 ? $buff->eof(...) : false,
-            fn (string $data) => signal(fn ($resume) => $resume(uv_udp_send($socket, $data, $addr))),
-            fn () => uv_udp_recv_stop($socket),
+            fn (int $size) => signal(fn (Closure $resume) => $resume($buff->read($size))),
+            fn () => $buff->size() > 0 ? $buff->eof() : false,
+            fn (string $data) => signal(fn ($resume) => $resume(uv_udp_send($socket, $data, $addr) ?? false)),
+            fn () => uv_close($socket),
         )]));
 
-
-
-        uv_udp_recv_start($socket, fn ($socket, $nread, $buffer, $addr) => $buff->write((string) $buffer));
+        uv_udp_recv_start($socket, fn ($socket, $nread, $buffer) => match ($nread) {
+            \UV::EOF => uv_close($socket),
+            default => $buff->write((string) $buffer),
+        });
     }
 
     private function dispatch(\UVUdp|\UVTcp $socket, string $data, \UVSockAddr $address = null): void
