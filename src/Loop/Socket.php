@@ -59,6 +59,10 @@ class Socket extends Descriptor
         int $method = STREAM_CRYPTO_METHOD_TLSv1_2_SERVER | STREAM_CRYPTO_METHOD_TLSv1_3_SERVER,
         mixed $seed = null,
     ): bool | int {
+        if (!$this->secure) {
+            return false;
+        }
+
         $negotiation = 0;
         while ($negotiation === 0) {
             $negotiation = stream_socket_enable_crypto(
