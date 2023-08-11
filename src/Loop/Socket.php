@@ -7,18 +7,23 @@ use Onion\Framework\Loop\Interfaces\{
     ResourceInterface,
 };
 
+use function Onion\Framework\Loop\suspend;
+
 class Socket extends Descriptor
 {
+    private bool $secure = false;
+
     public function __construct(mixed $resource, private ?string $address = null)
     {
-        parent::__construct(
-            $resource instanceof ResourceInterface ? $resource->getResource() : $resource
-        );
+        $resource = $resource instanceof ResourceInterface ? $resource->getResource() : $resource;
+        $this->secure = isset(stream_context_get_options($resource)['ssl']);
+
+        parent::__construct($resource);
     }
 
     public function read(int $size, int $flags = 0): string
     {
-        $response = stream_socket_recvfrom(
+        $response = $this->secure ? parent::read($size) : stream_socket_recvfrom(
             $this->getResource(),
             $size,
             $flags,
@@ -34,7 +39,7 @@ class Socket extends Descriptor
 
     public function write(string $data, int $flags = 0): int
     {
-        return stream_socket_sendto(
+        return $this->secure ? parent::write($data) : stream_socket_sendto(
             $this->getResource(),
             $data,
             $flags,
@@ -50,14 +55,29 @@ class Socket extends Descriptor
         );
     }
 
-    public function negotiateCrypto(
-        bool $enable = true,
+    public function negotiateSecurity(
         int $method = STREAM_CRYPTO_METHOD_TLSv1_2_SERVER | STREAM_CRYPTO_METHOD_TLSv1_3_SERVER,
+        mixed $seed = null,
     ): bool | int {
-        return stream_socket_enable_crypto(
-            $this->getResource(),
-            $enable,
-            $method,
-        );
+        $negotiation = 0;
+        while ($negotiation === 0) {
+            $negotiation = stream_socket_enable_crypto(
+                $this->getResource(),
+                true,
+                $method,
+                $seed,
+            );
+
+            // allow loop to continue and enough data to be available
+            suspend();
+        }
+
+        if ($negotiation === false) {
+            throw new \RuntimeException('Failed to negotiate security');
+        }
+
+        $this->secure = true;
+
+        return $negotiation;
     }
 }
