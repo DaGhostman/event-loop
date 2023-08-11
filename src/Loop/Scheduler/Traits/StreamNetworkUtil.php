@@ -19,6 +19,10 @@ use function Onion\Framework\Loop\{buffer, signal, write};
 
 trait StreamNetworkUtil
 {
+    private const SERVER_SECURITY_METHODS = STREAM_CRYPTO_METHOD_TLSv1_2_SERVER | STREAM_CRYPTO_METHOD_TLSv1_3_SERVER;
+    private const CLIENT_SECURITY_METHODS = STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT;
+
+
     protected function queue(Closure $cb, mixed ...$args): void
     {
         if (!$this instanceof SchedulerInterface) {
@@ -103,7 +107,7 @@ trait StreamNetworkUtil
 
         $client = new Socket($socket, stream_socket_get_name($socket, false));
         $client->unblock();
-        $client->negotiateSecurity();
+        $client->negotiateSecurity(self::CLIENT_SECURITY_METHODS);
 
         return $client;
     }
@@ -118,7 +122,7 @@ trait StreamNetworkUtil
         $client = new Socket($client, $peer);
 
         $client->unblock();
-        $client->negotiateSecurity();
+        $client->negotiateSecurity(self::SERVER_SECURITY_METHODS);
 
         return $client;
     }

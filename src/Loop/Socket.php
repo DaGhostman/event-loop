@@ -56,7 +56,7 @@ class Socket extends Descriptor
     }
 
     public function negotiateSecurity(
-        int $method = STREAM_CRYPTO_METHOD_TLSv1_2_SERVER | STREAM_CRYPTO_METHOD_TLSv1_3_SERVER,
+        int $method,
         mixed $seed = null,
     ): bool | int {
         if (!$this->secure) {
