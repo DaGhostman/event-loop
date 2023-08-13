@@ -13,9 +13,10 @@ use Onion\Framework\Server\Interfaces\ContextInterface as ServerContext;
 use Onion\Framework\Loop\Descriptor;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Loop\Interfaces\SchedulerInterface;
+use Onion\Framework\Loop\Interfaces\TaskInterface;
 use Onion\Framework\Loop\Task;
 
-use function Onion\Framework\Loop\{buffer, signal, write};
+use function Onion\Framework\Loop\{buffer, signal, write, read};
 
 trait StreamNetworkUtil
 {
@@ -107,9 +108,14 @@ trait StreamNetworkUtil
 
         $client = new Socket($socket, stream_socket_get_name($socket, true));
         $client->unblock();
-        $client->negotiateSecurity(self::CLIENT_SECURITY_METHODS);
 
-        return $client;
+        return signal(function ($resume, TaskInterface $task, SchedulerInterface $scheduler) use ($client) {
+            $scheduler->onWrite($client, Task::create(function () use ($resume, $client) {
+                $client->negotiateSecurity(self::CLIENT_SECURITY_METHODS);
+
+                $resume($client);
+            }));
+        });
     }
 
     protected function accept(ResourceInterface $socket, bool $secure = false): ?ResourceInterface
@@ -122,9 +128,14 @@ trait StreamNetworkUtil
         $client = new Socket($client, $peer);
 
         $client->unblock();
-        $client->negotiateSecurity(self::SERVER_SECURITY_METHODS);
 
-        return $client;
+        return signal(function ($resume, TaskInterface $task, SchedulerInterface $scheduler) use ($client) {
+            $scheduler->onRead($client, Task::create(function () use ($resume, $client) {
+                $client->negotiateSecurity(self::SERVER_SECURITY_METHODS);
+
+                $resume($client);
+            }));
+        });
     }
 
     protected function read(ResourceInterface $socket, Closure $cb, bool $persistent = true): void
