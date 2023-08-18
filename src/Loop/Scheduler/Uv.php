@@ -324,14 +324,14 @@ class Uv implements SchedulerInterface
 
                     $this->schedule(Task::create($dispatchFunction, [
                         new CallbackStream(
-                            fn (int $size) => signal(static fn (Closure $resume) => $resume($buff->read($size))),
+                            static fn (int $size) => signal(static fn (Closure $resume) => $resume($buff->read($size))),
                             static fn () => $buff->size() > 0 ? $buff->eof() : false,
-                            fn (string $data) => signal(static fn (Closure $resume) => uv_write(
+                            static fn (string $data) => signal(static fn (Closure $resume) => uv_write(
                                 $client,
                                 $data,
-                                fn (\UVTcp | \UVPipe $r, int $status) => $resume($status === 0 ? strlen($data) : false)
+                                static fn (\UVTcp | \UVPipe $r, int $status) => $resume($status === 0 ? strlen($data) : false)
                             )),
-                            fn () => uv_read_stop($client),
+                            static fn () => uv_read_stop($client),
                         )
                     ]));
                 }
