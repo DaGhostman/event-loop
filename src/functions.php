@@ -137,6 +137,10 @@ if (!function_exists(__NAMESPACE__ . '\scheduler')) {
         static $scheduler;
         if ($instance !== null) {
             $scheduler = $instance;
+
+            if (defined('EVENT_LOOP_HANDLE_SIGNALS') && EVENT_LOOP_HANDLE_SIGNALS) {
+                register_default_signal_handler();
+            }
         } elseif (!$scheduler) {
             if (extension_loaded('uv')) {
                 $scheduler = new Scheduler\Uv();
@@ -514,5 +518,26 @@ if (!function_exists(__NAMESPACE__ . '\buffer')) {
         }, false);
 
         return $buffer;
+    }
+}
+
+if (!function_exists(__NAMESPACE__ . '\register_default_signal_handler')) {
+    function register_default_signal_handler(): void
+    {
+        if (!defined('CTRL_C')) {
+            if (defined('PHP_WINDOWS_EVENT_CTRL_C')) {
+                define('CTRL_C', PHP_WINDOWS_EVENT_CTRL_C);
+            } else if (defined('SIGINT')) {
+                define('CTRL_C', SIGINT);
+            } else {
+                define('CTRL_C', 0);
+            }
+        }
+
+        scheduler()->signal(CTRL_C, Task::create(function () {
+            fwrite(STDOUT, "\nAttempting graceful termination by user request.\n");
+
+            scheduler()->stop();
+        }));
     }
 }

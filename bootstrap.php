@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use function Onion\Framework\Loop\{scheduler};
+use function Onion\Framework\Loop\{scheduler, register_default_signal_handler};
 
 if (!defined('EVENT_LOOP_AUTOSTART')) {
     /**
@@ -41,24 +41,10 @@ if (!defined('EVENT_LOOP_STREAM_IDLE_TIMEOUT')) {
     define('EVENT_LOOP_STREAM_IDLE_TIMEOUT', 1_000_000);
 }
 
-if (EVENT_LOOP_AUTOSTART) {
-    register_shutdown_function(fn () => scheduler()->start());
+if (EVENT_LOOP_HANDLE_SIGNALS) {
+    register_default_signal_handler();
 }
 
-if (EVENT_LOOP_HANDLE_SIGNALS) {
-    if (!defined('CTRL_C')) {
-        if (defined('PHP_WINDOWS_EVENT_CTRL_C')) {
-            define('CTRL_C', PHP_WINDOWS_EVENT_CTRL_C);
-        } else if (defined('SIGINT')) {
-            define('CTRL_C', SIGINT);
-        } else {
-            define('CTRL_C', 0);
-        }
-    }
-
-    scheduler()->signal(CTRL_C, \Onion\Framework\Loop\Task::create(function () {
-        fwrite(STDOUT, "\nAttempting graceful termination by user request.\n");
-
-        scheduler()->stop();
-    }));
+if (EVENT_LOOP_AUTOSTART) {
+    register_shutdown_function(fn () => scheduler()->start());
 }
