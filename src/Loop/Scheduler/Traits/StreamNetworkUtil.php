@@ -106,7 +106,7 @@ trait StreamNetworkUtil
             throw new \RuntimeException($error, $errno);
         }
 
-        $client = new Socket($socket, stream_socket_get_name($socket, true));
+        $client = new Socket($socket, stream_socket_get_name($socket, true) ?: null);
         $client->unblock();
 
         return signal(function ($resume, TaskInterface $task, SchedulerInterface $scheduler) use ($client) {
