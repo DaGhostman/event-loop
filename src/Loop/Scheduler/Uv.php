@@ -216,7 +216,10 @@ class Uv implements SchedulerInterface
         uv_signal_start(uv_signal_init($this->loop), function($handle) use ($task) {
             $this->schedule($task);
             uv_close($handle);
-        }, $signal);
+        }, match ($signal) {
+            PHP_WINDOWS_EVENT_CTRL_C, PHP_WINDOWS_EVENT_CTRL_BREAK => \UV::SIGINT,
+            default => $signal,
+        });
     }
 
     public function open(
