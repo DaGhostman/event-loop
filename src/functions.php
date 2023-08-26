@@ -15,7 +15,6 @@ use Onion\Framework\Loop\Interfaces\{
     TimerInterface
 };
 use Onion\Framework\Loop\Resources\Buffer;
-use Onion\Framework\Loop\Scheduler;
 use Onion\Framework\Loop\Types\Operation;
 use RuntimeException;
 use Throwable;
@@ -135,9 +134,9 @@ if (!function_exists(__NAMESPACE__ . '\scheduler')) {
     ): SchedulerInterface {
         /** @var SchedulerInterface|null $scheduler */
         static $scheduler;
+
         if ($instance !== null) {
             $scheduler = $instance;
-
             if (defined('EVENT_LOOP_HANDLE_SIGNALS') && EVENT_LOOP_HANDLE_SIGNALS) {
                 register_default_signal_handler();
             }
