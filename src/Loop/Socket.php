@@ -23,6 +23,7 @@ class Socket extends Descriptor
 
     public function read(int $size, int $flags = 0): string
     {
+        $peer = null;
         $response = $this->secure ? parent::read($size) : stream_socket_recvfrom(
             $this->getResource(),
             $size,
@@ -32,6 +33,8 @@ class Socket extends Descriptor
 
         if (!isset($this->address) && $peer !== null) {
             $this->address = $peer;
+        } else if (!isset($this->address) && $peer === null) {
+            $this->address = $this->getName(true) ?: null;
         }
 
         return $response;
