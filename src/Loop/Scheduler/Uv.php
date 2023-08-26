@@ -217,7 +217,8 @@ class Uv implements SchedulerInterface
             $this->schedule($task);
             uv_close($handle);
         }, match ($signal) {
-            PHP_WINDOWS_EVENT_CTRL_C, PHP_WINDOWS_EVENT_CTRL_BREAK => \UV::SIGINT,
+            defined('PHP_WINDOWS_EVENT_CTRL_C') ? PHP_WINDOWS_EVENT_CTRL_C : -1,
+                defined('PHP_WINDOWS_EVENT_CTRL_BREAK') ? PHP_WINDOWS_EVENT_CTRL_BREAK : -1 => \UV::SIGINT,
             default => $signal,
         });
     }
