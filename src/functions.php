@@ -477,7 +477,7 @@ if (!function_exists(__NAMESPACE__ . '\pipe')) {
     function pipe(
         ResourceInterface $source,
         ResourceInterface $destination,
-        int $chunkSize = 65535,
+        int $chunkSize = 8192,
         bool $sync = true,
     ): void {
         $input = $source->getResource();
