@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Onion\Framework\Loop\Scheduler;
@@ -21,25 +22,22 @@ use Onion\Framework\Client\Interfaces\ContextInterface as ClientContext;
 use Throwable;
 
 use function Onion\Framework\Loop\signal;
-use function Onion\Framework\Loop\suspend;
 use function Onion\Framework\Loop\is_pending;
 
 class Uv implements SchedulerInterface
 {
-    private readonly mixed $loop;
-    private bool $running = false;
-    private bool $stopped = false;
-
-    private array $readers = [];
-    private array $writers = [];
-
-    private \WeakMap $streams;
-
     use SchedulerErrorHandler;
     use StreamNetworkUtil {
         open as private nativeOpen;
         connect as private nativeConnect;
     }
+
+    private readonly mixed $loop;
+    private bool $running = false;
+    private bool $stopped = false;
+    private array $readers = [];
+    private array $writers = [];
+    private \WeakMap $streams;
 
     public function __construct()
     {
@@ -55,8 +53,7 @@ class Uv implements SchedulerInterface
         }
 
         if ($at === null) {
-
-            uv_idle_start(uv_idle_init($this->loop), function($handle) use ($task, $at) {
+            uv_idle_start(uv_idle_init($this->loop), function ($handle) use ($task, $at) {
                 uv_idle_stop($handle);
                 uv_close($handle);
 
@@ -90,7 +87,7 @@ class Uv implements SchedulerInterface
                 uv_timer_init($this->loop),
                 (int) ($at !== null ? ($at - (hrtime(true) / 1e3)) / 1e3 : 0),
                 0,
-                function($handle) use ($task, $at) {
+                function ($handle) use ($task, $at) {
                     uv_timer_stop($handle);
                     uv_close($handle);
 
@@ -138,7 +135,7 @@ class Uv implements SchedulerInterface
         return @uv_poll_start(
             $poll,
             \UV::READABLE | \UV::WRITABLE,
-            function($poll, $stat, $ev) use ($id) {
+            function ($poll, $stat, $ev) use ($id) {
                 if ($stat === \UV::EOF) {
                     uv_poll_stop($poll);
                     unset($this->readers[$id], $this->writers[$id]);
@@ -262,7 +259,7 @@ class Uv implements SchedulerInterface
 
     public function signal(int $signal, TaskInterface $task): void
     {
-        uv_signal_start(uv_signal_init($this->loop), function($handle) use ($task) {
+        uv_signal_start(uv_signal_init($this->loop), function ($handle) use ($task) {
             $this->schedule($task);
             uv_close($handle);
         }, match ($signal) {
@@ -366,8 +363,8 @@ class Uv implements SchedulerInterface
         Closure $acceptFunction,
         Closure $dispatchFunction,
     ): string {
-        uv_listen($sock, -1, function($server) use ($dispatchFunction, $acceptFunction) {
-            uv_read_start($acceptFunction($server), function(
+        uv_listen($sock, -1, function ($server) use ($dispatchFunction, $acceptFunction) {
+            uv_read_start($acceptFunction($server), function (
                 \UVTcp | \UVPipe $client,
                 ?int $nbRead,
                 ?string $buffer = null,
@@ -382,7 +379,8 @@ class Uv implements SchedulerInterface
                             static fn (string $data) => signal(static fn (Closure $resume) => uv_write(
                                 $client,
                                 $data,
-                                static fn (\UVTcp | \UVPipe $r, int $status) => $resume($status === 0 ? strlen($data) : false)
+                                static fn (\UVTcp | \UVPipe $r, int $status) =>
+                                    $resume($status === 0 ? strlen($data) : false)
                             )),
                             static fn () => uv_read_stop($client),
                         )
@@ -403,7 +401,7 @@ class Uv implements SchedulerInterface
         \UVUdp $sock,
         Closure $dispatchFunction
     ): string {
-        uv_udp_recv_start($sock, function(
+        uv_udp_recv_start($sock, function (
             \UVUdp $client,
             string|int|null $nreadOrBuffer,
             ?string $buffer = null,
@@ -445,8 +443,7 @@ class Uv implements SchedulerInterface
         NetworkProtocol $protocol = NetworkProtocol::TCP,
         ?ClientContext $context = null,
         NetworkAddress $type = NetworkAddress::NETWORK,
-    ): void
-    {
+    ): void {
         if ($context !== null || ($type === NetworkAddress::LOCAL && $protocol === NetworkProtocol::UDP)) {
             $this->nativeConnect($address, $port, $callback, $protocol, $context, $type);
 
@@ -480,16 +477,17 @@ class Uv implements SchedulerInterface
 
                         uv_read_start(
                             $socket,
-                            static fn ($socket, $status, $buffer) => match ($status) {
-                                \UV::EOF => uv_close($socket),
-                                default => $buff->write((string) $buffer),
-                            },
+                            static fn ($socket, $status, $buffer) =>
+                                match ($status) {
+                                    \UV::EOF => uv_close($socket),
+                                    default => $buff->write((string) $buffer),
+                                },
                         );
                     },
                 ),
                 NetworkProtocol::UDP => $this->send($callback, $addr),
             };
-        } else if ($type === NetworkAddress::LOCAL) {
+        } elseif ($type === NetworkAddress::LOCAL) {
             uv_pipe_connect(
                 uv_pipe_init($this->loop, false),
                 $address,
@@ -524,8 +522,7 @@ class Uv implements SchedulerInterface
     public function send(
         Closure $callback,
         \UVSockAddr $addr = null,
-    ): void
-    {
+    ): void {
         $buff = new Buffer();
 
         /** @var \UVUdp $socket */

@@ -70,7 +70,8 @@ if (!function_exists(__NAMESPACE__ . '\write')) {
      * @param bool $sync Should the calling coroutine block until completion
      * or return immediately.
      *
-     * @return int|null The number of bytes written in blocking mode (default) or null when in non-blocking or error occurred while writing
+     * @return int|null The number of bytes written in blocking mode (default) or
+     *  null when in non-blocking or error occurred while writing
      *
      * @throws FiberError
      * @throws Throwable
@@ -508,7 +509,8 @@ if (!function_exists(__NAMESPACE__ . '\pipe')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\buffer')) {
-    function buffer(ResourceInterface $resource, int $limit = -1, int $chunk = 4096): Buffer {
+    function buffer(ResourceInterface $resource, int $limit = -1, int $chunk = 4096): Buffer
+    {
         $buffer = new Buffer($limit);
         read($resource, static function (ResourceInterface $resource) use (&$buffer, &$chunk) {
             while (!$resource->eof()) {
@@ -526,7 +528,7 @@ if (!function_exists(__NAMESPACE__ . '\register_default_signal_handler')) {
         if (!defined('CTRL_C')) {
             if (defined('PHP_WINDOWS_EVENT_CTRL_C')) {
                 define('CTRL_C', PHP_WINDOWS_EVENT_CTRL_C);
-            } else if (defined('SIGINT')) {
+            } elseif (defined('SIGINT')) {
                 define('CTRL_C', SIGINT);
             } else {
                 define('CTRL_C', 0);

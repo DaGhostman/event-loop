@@ -1,8 +1,12 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Onion\Framework\Loop\Scheduler;
-use EventBase, Event as TaskEvent;
+
+use EventBase,
+
+Event as TaskEvent;
 use EventBufferEvent;
 use EventListener;
 use EventConfig;
@@ -29,18 +33,18 @@ use Onion\Framework\Loop\Types\NetworkAddress;
 
 class Event implements SchedulerInterface
 {
+    use SchedulerErrorHandler;
+    use StreamNetworkUtil {
+        open as private nativeOpen;
+        connect as private nativeConnect;
+    }
+
     private EventBase $base;
     private array $tasks = [];
     private array $sockets = [];
     private array $buffers = [];
 
     private bool $started = false;
-
-    use SchedulerErrorHandler;
-    use StreamNetworkUtil {
-        open as private nativeOpen;
-        connect as private nativeConnect;
-    }
 
     public function __construct()
     {
@@ -161,7 +165,8 @@ class Event implements SchedulerInterface
         $this->tasks[$key] = $event;
     }
 
-    public function start(): void {
+    public function start(): void
+    {
         if ($this->started) {
             return;
         }
@@ -170,7 +175,8 @@ class Event implements SchedulerInterface
         $this->base->loop();
     }
 
-    public function stop(): void {
+    public function stop(): void
+    {
         if (!$this->started) {
             return;
         }
@@ -293,8 +299,7 @@ class Event implements SchedulerInterface
         NetworkProtocol $protocol = NetworkProtocol::TCP,
         ?ClientContext $context = null,
         NetworkAddress $type = NetworkAddress::NETWORK,
-    ): void
-    {
+    ): void {
         if ($protocol === NetworkProtocol::UDP) {
             $this->nativeConnect($address, $port, $callback, $protocol, $context, $type);
             return;
@@ -339,9 +344,11 @@ class Event implements SchedulerInterface
             function (EventBufferEvent $bev, int $events) use ($callback, $buffer) {
                 if ($events & EventBufferEvent::CONNECTED) {
                     $this->schedule(Task::create($callback, [new CallbackStream(
-                        fn (int $size) => signal(fn (Closure $resume) => $resume($buffer->read($size) ?? false)),
+                        fn (int $size) => signal(fn (Closure $resume) =>
+                            $resume($buffer->read($size) ?? false)),
                         fn () => $buffer->size() > 0 ? $buffer->eof() : false,
-                        fn (string $data) => signal(fn (Closure $resume) => $resume($bev->write($data) ? strlen($data) : false)),
+                        fn (string $data) => signal(fn (Closure $resume) =>
+                            $resume($bev->write($data) ? strlen($data) : false)),
                         function () use ($bev) {
                             unset($this->buffers[$bev->fd]);
                             $bev->free();

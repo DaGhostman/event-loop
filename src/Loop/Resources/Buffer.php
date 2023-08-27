@@ -1,7 +1,9 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Onion\Framework\Loop\Resources;
+
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 
 class Buffer implements ResourceInterface
@@ -76,64 +78,64 @@ class Buffer implements ResourceInterface
         return $this->cursor === $this->size;
     }
 
-	public function size(): int
-	{
-		return $this->size;
-	}
+    public function size(): int
+    {
+        return $this->size;
+    }
 
     public function __toString(): string
     {
         return $this->contents;
     }
-	/**
-	 * Close the underlying resource
-	 * @return bool Whether the operation succeeded or not
-	 */
-	public function close(): bool
+    /**
+     * Close the underlying resource
+     * @return bool Whether the operation succeeded or not
+     */
+    public function close(): bool
     {
         return $this->closed = true;
-	}
+    }
 
-	/**
-	 * Attempt to make operations on the underlying resource blocking
-	 * @return bool Whether the operation succeeded or not
-	 */
-	public function block(): bool
+    /**
+     * Attempt to make operations on the underlying resource blocking
+     * @return bool Whether the operation succeeded or not
+     */
+    public function block(): bool
     {
         return true;
-	}
+    }
 
-	/**
-	 * Attempt to make operations on the underlying resource non-blocking
-	 * @return bool Whether the operation succeeded or not
-	 */
-	public function unblock(): bool
+    /**
+     * Attempt to make operations on the underlying resource non-blocking
+     * @return bool Whether the operation succeeded or not
+     */
+    public function unblock(): bool
     {
         return false;
-	}
+    }
 
-	/**
-	 * Returns the underlying resource
-	 */
-	public function getResource(): mixed
+    /**
+     * Returns the underlying resource
+     */
+    public function getResource(): mixed
     {
         return null;
-	}
+    }
 
-	/**
-	 * Retrieve the numeric identifier of the underlying resource
-	 * @return int
-	 */
-	public function getResourceId(): int
+    /**
+     * Retrieve the numeric identifier of the underlying resource
+     * @return int
+     */
+    public function getResourceId(): int
     {
         return -1;
-	}
+    }
 
-	/**
-	 * Detaches the underlying resource from the current object and
-	 * returns it, making the current object obsolete
-	 */
-	public function detach(): mixed
+    /**
+     * Detaches the underlying resource from the current object and
+     * returns it, making the current object obsolete
+     */
+    public function detach(): mixed
     {
         $this->close();
         $this->contents = '';
@@ -141,5 +143,5 @@ class Buffer implements ResourceInterface
         $this->cursor = 0;
 
         return null;
-	}
+    }
 }

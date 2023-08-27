@@ -1,7 +1,9 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Onion\Framework\Loop\Scheduler;
+
 use EvLoop;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Loop\Interfaces\SchedulerInterface;
@@ -14,6 +16,9 @@ use Throwable;
 
 class Ev implements SchedulerInterface
 {
+    use SchedulerErrorHandler;
+    use StreamNetworkUtil;
+
     private readonly EvLoop $loop;
 
     private array $tasks = [];
@@ -21,8 +26,6 @@ class Ev implements SchedulerInterface
 
     private bool $started = false;
 
-    use SchedulerErrorHandler;
-    use StreamNetworkUtil;
 
     public function __construct()
     {

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Onion\Framework\Loop\Scheduler\Traits;
@@ -33,7 +34,7 @@ trait SchedulerErrorHandler
         assert(
             $this instanceof SchedulerInterface,
             new LogicException(
-                'Using SchedulerErrorHandler trait in a class that does not '.
+                'Using SchedulerErrorHandler trait in a class that does not ' .
                     'implement SchedulerInterface is invalid'
             ),
         );

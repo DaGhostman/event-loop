@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Onion\Framework\Loop;
@@ -38,7 +39,7 @@ class Mutex implements MutexInterface
             $storage[$target] = [$owner, $type, 1];
 
             return true;
-        } else if (
+        } elseif (
             ($type === LockType::EXCLUSIVE && $storage[$target][0] === $owner) ||
             ($type === LockType::SHARED && $storage[$target][1] === LockType::SHARED)
         ) {
@@ -83,8 +84,7 @@ class Mutex implements MutexInterface
 
     public static function release(
         object $target,
-    ): bool
-    {
+    ): bool {
         return signal(
             fn (Closure $resume, TaskInterface $task) => $resume(static::unlock($target, $task))
         );

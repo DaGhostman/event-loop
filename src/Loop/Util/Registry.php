@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Onion\Framework\Loop\Util;
@@ -6,7 +7,9 @@ namespace Onion\Framework\Loop\Util;
 class Registry
 {
     private array $storage = [];
-    public function __construct() {}
+    public function __construct()
+    {
+    }
 
     public function get(string $key, mixed $default = null): mixed
     {

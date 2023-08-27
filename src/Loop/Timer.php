@@ -58,7 +58,6 @@ class Timer implements TimerInterface
                 $resume($timer);
             }
         );
-
     }
 
     public static function interval(Closure $coroutine, int $ms): TimerInterface

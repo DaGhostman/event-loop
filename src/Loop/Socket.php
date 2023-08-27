@@ -33,7 +33,7 @@ class Socket extends Descriptor
 
         if (!isset($this->address) && $peer !== null) {
             $this->address = $peer;
-        } else if (!isset($this->address) && $peer === null) {
+        } elseif (!isset($this->address) && $peer === null) {
             $this->address = $this->getName(true) ?: null;
         }
 

@@ -1,12 +1,13 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Onion\Framework\Loop\Scheduler\Traits;
 
 use Closure;
 use Onion\Framework\Client\Interfaces\ContextInterface as ClientContext;
-use \Onion\Framework\Loop\Types\NetworkAddress;
-use \Onion\Framework\Loop\Types\NetworkProtocol;
+use Onion\Framework\Loop\Types\NetworkAddress;
+use Onion\Framework\Loop\Types\NetworkProtocol;
 use Onion\Framework\Loop\Resources\CallbackStream;
 use Onion\Framework\Loop\Socket;
 use Onion\Framework\Server\Interfaces\ContextInterface as ServerContext;
@@ -28,7 +29,7 @@ trait StreamNetworkUtil
     {
         if (!$this instanceof SchedulerInterface) {
             throw new \LogicException(
-                'Using StreamNetworkUtil trait in a class that does not '.
+                'Using StreamNetworkUtil trait in a class that does not ' .
                     'implement SchedulerInterface is invalid'
             );
         }
@@ -42,8 +43,7 @@ trait StreamNetworkUtil
         NetworkProtocol $protocol,
         ?ServerContext $context,
         NetworkAddress $type
-    ): ResourceInterface
-    {
+    ): ResourceInterface {
 
         $ctx = stream_context_create(array_merge([
             'socket' => [
@@ -53,13 +53,37 @@ trait StreamNetworkUtil
 
         $socket = match ($protocol) {
             NetworkProtocol::TCP => match ($type) {
-                NetworkAddress::NETWORK => stream_socket_server("tcp://{$address}:{$port}", $errno, $error, STREAM_SERVER_BIND | STREAM_SERVER_LISTEN, $ctx),
-                NetworkAddress::LOCAL => stream_socket_server("unix://{$address}", $errno, $error, STREAM_SERVER_BIND | STREAM_SERVER_LISTEN, $ctx),
+                NetworkAddress::NETWORK => stream_socket_server(
+                    "tcp://{$address}:{$port}",
+                    $errno,
+                    $error,
+                    STREAM_SERVER_BIND | STREAM_SERVER_LISTEN,
+                    $ctx,
+                ),
+                NetworkAddress::LOCAL => stream_socket_server(
+                    "unix://{$address}",
+                    $errno,
+                    $error,
+                    STREAM_SERVER_BIND | STREAM_SERVER_LISTEN,
+                    $ctx,
+                ),
                 default => throw new \InvalidArgumentException("Invalid address type provided"),
             },
             NetworkProtocol::UDP => match ($type) {
-                NetworkAddress::NETWORK => stream_socket_server("udp://{$address}", $errno, $error, STREAM_SERVER_BIND, $ctx),
-                NetworkAddress::LOCAL => stream_socket_server("udg://{$address}", $errno, $error, STREAM_SERVER_BIND, $ctx),
+                NetworkAddress::NETWORK => stream_socket_server(
+                    "udp://{$address}",
+                    $errno,
+                    $error,
+                    STREAM_SERVER_BIND,
+                    $ctx,
+                ),
+                NetworkAddress::LOCAL => stream_socket_server(
+                    "udg://{$address}",
+                    $errno,
+                    $error,
+                    STREAM_SERVER_BIND,
+                    $ctx
+                ),
                 default => throw new \InvalidArgumentException("Invalid address type provided"),
             },
             default => throw new \InvalidArgumentException("Invalid protocol provided"),
@@ -80,8 +104,7 @@ trait StreamNetworkUtil
         NetworkProtocol $protocol,
         ?ClientContext $context,
         NetworkAddress $type
-    ): ResourceInterface
-    {
+    ): ResourceInterface {
         $ctx = stream_context_create(array_merge([
             'socket' => [
                 'tcp_nodelay' => true,
@@ -155,8 +178,7 @@ trait StreamNetworkUtil
         NetworkProtocol $protocol = NetworkProtocol::TCP,
         ServerContext $context = null,
         NetworkAddress $type = NetworkAddress::NETWORK,
-    ): string
-    {
+    ): string {
         $socket = $this->createServerSocket($address, $port, $protocol, $context, $type);
 
         $accept = $protocol === NetworkProtocol::TCP ?
@@ -197,8 +219,7 @@ trait StreamNetworkUtil
         NetworkProtocol $protocol = NetworkProtocol::TCP,
         ?ClientContext $context = null,
         NetworkAddress $type = NetworkAddress::NETWORK,
-    ): void
-    {
+    ): void {
         $resource = $this->createClientSocket($address, $port, $protocol, $context, $type);
 
         $buffer = buffer($resource);

@@ -14,6 +14,9 @@ use Throwable;
 
 class Select implements SchedulerInterface
 {
+    use SchedulerErrorHandler;
+    use StreamNetworkUtil;
+
     private SplQueue $queue;
     /**
      *
@@ -36,9 +39,6 @@ class Select implements SchedulerInterface
     protected array $reads = [];
     protected array $writes = [];
     protected array $closes = [];
-
-    use SchedulerErrorHandler;
-    use StreamNetworkUtil;
 
     public function __construct()
     {
