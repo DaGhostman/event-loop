@@ -14,14 +14,14 @@ if (!defined('EVENT_LOOP_AUTOSTART')) {
     define('EVENT_LOOP_AUTOSTART', true);
 }
 
-if (!defined('EVENT_LOOP_HANDLE_SIGNALS')) {
+if (!defined('EVENT_LOOP_DEFAULT_HANDLE_SIGNALS')) {
     /**
      * Use internal signal handler that is aware of the event
      * loop. Defaults to `true`
      *
      * @var bool `true` to enable, `false` otherwise
      */
-    define('EVENT_LOOP_HANDLE_SIGNALS', true);
+    define('EVENT_LOOP_DEFAULT_HANDLE_SIGNALS', false);
 }
 
 if (!defined('EVENT_LOOP_STREAM_IDLE_TIMEOUT')) {
@@ -41,7 +41,7 @@ if (!defined('EVENT_LOOP_STREAM_IDLE_TIMEOUT')) {
     define('EVENT_LOOP_STREAM_IDLE_TIMEOUT', 1_000_000);
 }
 
-if (EVENT_LOOP_HANDLE_SIGNALS) {
+if (EVENT_LOOP_DEFAULT_HANDLE_SIGNALS) {
     register_default_signal_handler();
 }
 

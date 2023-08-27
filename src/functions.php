@@ -138,7 +138,7 @@ if (!function_exists(__NAMESPACE__ . '\scheduler')) {
 
         if ($instance !== null) {
             $scheduler = $instance;
-            if (defined('EVENT_LOOP_HANDLE_SIGNALS') && EVENT_LOOP_HANDLE_SIGNALS) {
+            if (defined('EVENT_LOOP_DEFAULT_HANDLE_SIGNALS') && EVENT_LOOP_DEFAULT_HANDLE_SIGNALS) {
                 register_default_signal_handler();
             }
         } elseif (!$scheduler) {
