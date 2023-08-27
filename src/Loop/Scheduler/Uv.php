@@ -30,6 +30,9 @@ class Uv implements SchedulerInterface
     private bool $running = false;
     private bool $stopped = false;
 
+    private array $readers = [];
+    private array $writers = [];
+
     private \WeakMap $streams;
 
     use SchedulerErrorHandler;
@@ -122,6 +125,63 @@ class Uv implements SchedulerInterface
         }
     }
 
+    private function poll(ResourceInterface $resource): bool
+    {
+        $id = $resource->getResourceId();
+
+        $poll = @uv_poll_init($this->loop, $resource->getResource());
+
+        if (!$poll) {
+            return false;
+        }
+
+        return @uv_poll_start(
+            $poll,
+            \UV::READABLE | \UV::WRITABLE,
+            function($poll, $stat, $ev) use ($id) {
+                if ($stat === \UV::EOF) {
+                    uv_poll_stop($poll);
+                    unset($this->readers[$id], $this->writers[$id]);
+                    uv_close($poll);
+                    return;
+                }
+
+                if (($ev & \UV::READABLE) === \UV::READABLE) {
+                    foreach ($this->readers[$id] ?? [] as $idx => $task) {
+                        if (!$task->isPersistent()) {
+                            unset($this->readers[$id][$idx]);
+                        }
+
+
+                        $this->schedule($task->spawn(false));
+                    }
+
+                    if (empty($this->readers[$id])) {
+                        unset($this->readers[$id]);
+                    }
+                }
+
+                if (($ev & \UV::WRITABLE) === \UV::WRITABLE) {
+                    foreach ($this->writers[$id] ?? [] as $idx => $task) {
+                        if (!$task->isPersistent()) {
+                            unset($this->writers[$id][$idx]);
+                        }
+
+
+                        $this->schedule($task->spawn(false));
+                    }
+                }
+
+                if (!empty($this->readers[$id]) && !empty($this->writers[$id])) {
+                    uv_poll_stop($poll);
+                    uv_close($poll, function () use ($id) {
+                        unset($this->readers[$id], $this->writers[$id]);
+                    });
+                }
+            }
+        ) instanceof \UVPoll;
+    }
+
     public function onRead(ResourceInterface $resource, TaskInterface $task): void
     {
         if ($resource->getResource() === null) {
@@ -133,28 +193,22 @@ class Uv implements SchedulerInterface
             return;
         }
 
-        if (stream_is_local($resource->getResource())) {
+        if (!$this->poll($resource)) {
             $this->schedule(Task::create(function () use ($resource, $task) {
-                while (!is_pending($resource, Operation::READ)) {
-                    suspend();
+                if (is_pending($resource, Operation::READ)) {
+                    $this->schedule($task);
+                    Task::stop();
                 }
-
-                $this->schedule($task);
-            }));
+            }, persistent: true));
             return;
         }
 
-        uv_poll_start(
-            uv_poll_init($this->loop, $resource->getResource()),
-            \UV::READABLE,
-            function($poll, $stat, $ev) use ($task) {
-                if (!$task->isPersistent()) {
-                    uv_poll_stop($poll);
-                }
+        $id = $resource->getResourceId();
+        if (!isset($this->readers[$id])) {
+            $this->readers[$id] = [];
+        }
 
-                $this->schedule($task->spawn(false));
-            }
-        );
+        $this->readers[$resource->getResourceId()][] = $task;
     }
 
     public function onWrite(ResourceInterface $resource, TaskInterface $task): void
@@ -168,27 +222,22 @@ class Uv implements SchedulerInterface
             return;
         }
 
-        if (stream_is_local($resource->getResource())) {
+        if (!$this->poll($resource)) {
             $this->schedule(Task::create(function () use ($resource, $task) {
-                while (!is_pending($resource, Operation::WRITE)) {
-                    suspend();
+                if (is_pending($resource, Operation::WRITE)) {
+                    $this->schedule($task);
+                    Task::stop();
                 }
-                $this->schedule($task);
-            }));
+            }, persistent: true));
             return;
         }
 
-        uv_poll_start(
-            uv_poll_init($this->loop, $resource->getResource()),
-            \UV::WRITABLE,
-            function($poll, $stat, $ev) use ($task) {
-                if (!$task->isPersistent()) {
-                    uv_poll_stop($poll);
-                }
+        $id = $resource->getResourceId();
+        if (!isset($this->writers[$id])) {
+            $this->writers[$id] = [];
+        }
 
-                $this->schedule($task->spawn(false));
-            }
-        );
+        $this->writers[$resource->getResourceId()][] = $task;
     }
 
     public function start(): void
@@ -266,7 +315,7 @@ class Uv implements SchedulerInterface
                 $this->createPipeSocket($address),
                 function (\UVPipe $socket): \UVPipe {
                     /** @var \UVPipe $accept */
-                    $accept = uv_pipe_init($this->loop);
+                    $accept = uv_pipe_init($this->loop, false);
                     uv_accept($socket, $accept);
 
                     return $accept;
@@ -442,7 +491,7 @@ class Uv implements SchedulerInterface
             };
         } else if ($type === NetworkAddress::LOCAL) {
             uv_pipe_connect(
-                uv_pipe_init($this->loop),
+                uv_pipe_init($this->loop, false),
                 $address,
                 function ($socket, $static) use ($callback) {
                     $buff = new Buffer();
