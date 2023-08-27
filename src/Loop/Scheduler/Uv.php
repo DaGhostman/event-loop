@@ -172,7 +172,7 @@ class Uv implements SchedulerInterface
                     }
                 }
 
-                if (!empty($this->readers[$id]) && !empty($this->writers[$id])) {
+                if (empty($this->readers[$id]) && empty($this->writers[$id])) {
                     uv_poll_stop($poll);
                     uv_close($poll, function () use ($id) {
                         unset($this->readers[$id], $this->writers[$id]);
