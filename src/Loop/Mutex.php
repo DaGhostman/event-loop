@@ -7,7 +7,7 @@ namespace Onion\Framework\Loop;
 use Closure;
 use Onion\Framework\Loop\Interfaces\MutexInterface;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
-use Onion\Framework\Loop\Scheduler\Types\LockType;
+use Onion\Framework\Loop\Types\Lock as LockType;
 
 use function Onion\Framework\Loop\signal;
 
