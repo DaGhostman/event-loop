@@ -45,7 +45,7 @@ class Buffer implements ResourceInterface
         $this->cursor = match ($whence) {
             SEEK_SET => $position,
             SEEK_CUR => $this->cursor + $position,
-            SEEK_END => $this->size,
+            SEEK_END => $this->size + ($position > 0 ? ($position * -1): $position),
         };
     }
 
