@@ -22,7 +22,7 @@ class Mutex implements MutexInterface
     {
     }
 
-    private static function getStorage(): \WEakMap
+    private static function getStorage(): \WeakMap
     {
         if (!isset(static::$mutexes)) {
             static::$mutexes = new \WeakMap();
@@ -51,7 +51,7 @@ class Mutex implements MutexInterface
         return false;
     }
 
-    public static function unlock(object $target, TaskInterface $owner): bool
+    private static function unlock(object $target, TaskInterface $owner): bool
     {
         $storage = static::getStorage();
         if (
