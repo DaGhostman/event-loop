@@ -4,31 +4,41 @@ declare(strict_types=1);
 
 namespace Onion\Framework\Loop\Resources;
 
+use Onion\Framework\Loop\Descriptor;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 
-class Buffer implements ResourceInterface
+class Buffer extends Descriptor implements ResourceInterface
 {
     private string $contents = '';
     private int $size = 0;
     private int $cursor = 0;
 
     private bool $closed = false;
+    private mixed $resource = null;
 
     public function __construct(
         private readonly int $limit = -1
     ) {
+
+        parent::__construct($this->resource = fopen('file://' . tempnam(sys_get_temp_dir(), 'buffer'), 'r+b'));
+        // ensure buffer stream is EOF
+        parent::read(1);
     }
 
     public function read(int $length): string|false
     {
         $current = substr($this->contents, $this->cursor, $length);
         $this->cursor += strlen($current);
+        parent::read(1);
 
         return $current;
     }
 
     public function write(string $data): int|false
     {
+        rewind($this->getResource());
+        parent::write('.');
+
         $length = strlen($data);
         if ($this->limit !== -1 && $this->limit < ($this->size + $length)) {
             throw new \OverflowException('Buffer limit reached');
@@ -75,7 +85,7 @@ class Buffer implements ResourceInterface
 
     public function eof(): bool
     {
-        return $this->cursor === $this->size;
+        return feof($this->resource);
     }
 
     public function size(): int
@@ -93,42 +103,7 @@ class Buffer implements ResourceInterface
      */
     public function close(): bool
     {
-        return $this->closed = true;
-    }
-
-    /**
-     * Attempt to make operations on the underlying resource blocking
-     * @return bool Whether the operation succeeded or not
-     */
-    public function block(): bool
-    {
-        return true;
-    }
-
-    /**
-     * Attempt to make operations on the underlying resource non-blocking
-     * @return bool Whether the operation succeeded or not
-     */
-    public function unblock(): bool
-    {
-        return false;
-    }
-
-    /**
-     * Returns the underlying resource
-     */
-    public function getResource(): mixed
-    {
-        return null;
-    }
-
-    /**
-     * Retrieve the numeric identifier of the underlying resource
-     * @return int
-     */
-    public function getResourceId(): int
-    {
-        return -1;
+        return $this->closed = true && parent::close();
     }
 
     /**
@@ -137,11 +112,11 @@ class Buffer implements ResourceInterface
      */
     public function detach(): mixed
     {
-        $this->close();
+        $this->closed = true;
         $this->contents = '';
         $this->size = 0;
         $this->cursor = 0;
 
-        return null;
+        return parent::detach();;
     }
 }
