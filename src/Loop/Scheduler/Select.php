@@ -191,8 +191,13 @@ class Select implements SchedulerInterface
             $timeout /= 1000;
         }
 
+        if (empty($rSocks) && empty($wSocks)) {
+            // ensure we don't run the CPU too high
+            usleep((int) $timeout);
+            return;
+        }
+
         if (
-            (empty($rSocks) && empty($wSocks)) ||
             @!stream_select($rSocks, $wSocks, $eSocks, $timeout !== null ? 0 : null, (int) $timeout)
         ) {
             return;
