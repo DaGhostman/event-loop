@@ -21,7 +21,7 @@ class Timer implements TimerInterface
 
     public function stop(): void
     {
-        $this->task->get()?->kill();
+        $this->task->get()?->stop();
     }
 
     private static function create(Closure $coroutine, int $ms, bool $repeating = true): static
@@ -29,22 +29,12 @@ class Timer implements TimerInterface
         // Convert milliseconds to microseconds
         $ms *= 1000;
         $task = Task::create(
-            static function (Closure $coroutine, int $ms, bool $repeating) use (&$tick) {
+            static function (Closure $coroutine, int $ms, bool $repeating) {
                 $tick = ((int) floor(hrtime(true) / 1e+3));
                 coroutine($coroutine);
 
                 if ($repeating) {
-                    while (true) {
-                        signal(
-                            fn (Closure $resume, TaskInterface $task, SchedulerInterface $scheduler) =>
-                            $scheduler->schedule(
-                                Task::create($resume),
-                                $tick + $ms,
-                            )
-                        );
-                        $tick = ((int) floor(hrtime(true) / 1e+3));
-                        coroutine($coroutine);
-                    }
+                    scheduler()->schedule(Task::current()->spawn(false), $tick + $ms);
                 }
             },
             [$coroutine, $ms, $repeating],
@@ -52,12 +42,9 @@ class Timer implements TimerInterface
 
         $timer = new static($task);
 
-        return signal(
-            function (Closure $resume, TaskInterface $t, SchedulerInterface $scheduler) use ($timer, $task, $ms) {
-                $scheduler->schedule($task, ((int) floor(hrtime(true) / 1e+3)) + $ms);
-                $resume($timer);
-            }
-        );
+        scheduler()->schedule($task, ((int) floor(hrtime(true) / 1e+3)) + $ms);
+
+        return $timer;
     }
 
     public static function interval(Closure $coroutine, int $ms): TimerInterface
