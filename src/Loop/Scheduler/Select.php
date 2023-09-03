@@ -166,6 +166,10 @@ class Select implements SchedulerInterface
                 continue;
             }
 
+            if (feof($socket)) {
+                continue;
+            }
+
             $rSocks[] = $socket;
         }
 
@@ -175,6 +179,11 @@ class Select implements SchedulerInterface
                 unset($this->writes[get_resource_id($socket)]);
                 continue;
             }
+
+            if (feof($socket)) {
+                continue;
+            }
+
             $wSocks[] = $socket;
         }
 
