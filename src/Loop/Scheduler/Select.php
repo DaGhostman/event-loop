@@ -161,12 +161,13 @@ class Select implements SchedulerInterface
     {
         $rSocks = [];
         foreach ($this->reads as [$socket]) {
-            if (get_resource_type($socket) === 'Unknown') {
+            if (is_resource($socket) && get_resource_type($socket) === 'Unknown') {
                 unset($this->reads[get_resource_id($socket)]);
                 continue;
             }
 
-            if (feof($socket)) {
+            if (is_resource($socket) && feof($socket)) {
+                unset($this->reads[get_resource_id($socket)]);
                 continue;
             }
 
@@ -175,12 +176,13 @@ class Select implements SchedulerInterface
 
         $wSocks = [];
         foreach ($this->writes as [$socket]) {
-            if (get_resource_type($socket) === 'Unknown') {
+            if (is_resource($socket) && get_resource_type($socket) === 'Unknown') {
                 unset($this->writes[get_resource_id($socket)]);
                 continue;
             }
 
-            if (feof($socket)) {
+            if (is_resource($socket) && feof($socket)) {
+                unset($this->writes[get_resource_id($socket)]);
                 continue;
             }
 
