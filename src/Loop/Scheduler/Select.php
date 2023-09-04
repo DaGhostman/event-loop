@@ -189,10 +189,6 @@ class Select implements SchedulerInterface
             $wSocks[] = $socket;
         }
 
-        if ($timeout !== 0) {
-            $timeout /= 1000;
-        }
-
         if (empty($rSocks) && empty($wSocks)) {
             // ensure we don't run the CPU too high
             usleep((int) $timeout);
