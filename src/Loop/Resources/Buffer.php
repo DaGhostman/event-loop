@@ -21,8 +21,6 @@ class Buffer extends Descriptor implements ResourceInterface
     ) {
 
         parent::__construct($this->resource = fopen('file://' . tempnam(sys_get_temp_dir(), 'buffer'), 'r+b'));
-        // ensure buffer stream is EOF
-        parent::read(1);
     }
 
     public function read(int $length): string|false
