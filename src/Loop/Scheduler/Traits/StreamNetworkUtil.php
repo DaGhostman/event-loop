@@ -24,19 +24,6 @@ trait StreamNetworkUtil
     private const SERVER_SECURITY_METHODS = STREAM_CRYPTO_METHOD_TLSv1_2_SERVER | STREAM_CRYPTO_METHOD_TLSv1_3_SERVER;
     private const CLIENT_SECURITY_METHODS = STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT;
 
-
-    protected function queue(Closure $cb, mixed ...$args): void
-    {
-        if (!$this instanceof SchedulerInterface) {
-            throw new \LogicException(
-                'Using StreamNetworkUtil trait in a class that does not ' .
-                    'implement SchedulerInterface is invalid'
-            );
-        }
-
-        $this->schedule(Task::create($cb, $args));
-    }
-
     protected function createServerSocket(
         string $address,
         int $port,
@@ -49,7 +36,7 @@ trait StreamNetworkUtil
             'socket' => [
                 'tcp_nodelay' => true,
             ]
-        ], $context->getContextArray()));
+        ], $context?->getContextArray() ?? []));
 
         $socket = match ($protocol) {
             NetworkProtocol::TCP => match ($type) {
@@ -109,7 +96,7 @@ trait StreamNetworkUtil
             'socket' => [
                 'tcp_nodelay' => true,
             ]
-        ], $context->getContextArray()));
+        ], $context?->getContextArray() ?? []));
 
         $socket = stream_socket_client(match ($protocol) {
             NetworkProtocol::TCP => match ($type) {
@@ -189,24 +176,14 @@ trait StreamNetworkUtil
                 return new Socket($resource, $peer);
             };
 
-        $dispatch = fn (...$args) => $this->queue($callback, ...$args);
-
-        $this->read($socket, function (ResourceInterface $resource) use ($accept, $dispatch) {
+        $this->read($socket, function (ResourceInterface $resource) use ($accept, $callback) {
             $connection = $accept($resource);
 
             if (!$connection) {
                 return;
             }
 
-            $this->read($connection, static function (ResourceInterface $resource) use ($dispatch) {
-                $buffer = buffer($resource);
-                $dispatch(new CallbackStream(
-                    static fn (int $size) => signal(fn (Closure $resume) => $resume($buffer->read($size))),
-                    static fn () => $buffer->size() > 0 ? $buffer->eof() : false,
-                    static fn (string $data) => write($resource, $data) ?? false,
-                    $resource->close(...),
-                ));
-            }, false);
+            $this->read($connection, static fn (ResourceInterface $resource) => $callback($resource), true);
         });
 
         return stream_socket_get_name($socket->getResource(), false);
@@ -222,15 +199,9 @@ trait StreamNetworkUtil
     ): void {
         $resource = $this->createClientSocket($address, $port, $protocol, $context, $type);
 
-        $buffer = buffer($resource);
         $this->write(
             $resource,
-            fn () => $this->queue($callback, new CallbackStream(
-                static fn (int $size) => signal(fn (Closure $resume) => $resume($buffer->read($size))),
-                static fn () => $buffer->size() > 0 ? $buffer->eof() : false,
-                static fn (string $data) => write($resource, $data) ?? false,
-                $resource->close(...),
-            )),
+            fn () => $callback($resource),
             false,
         );
     }
