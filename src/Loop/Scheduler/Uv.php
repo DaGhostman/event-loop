@@ -38,12 +38,14 @@ class Uv implements SchedulerInterface
     private array $readers = [];
     private array $writers = [];
     private \WeakMap $streams;
+    private \WeakMap $streamCallbacks;
 
     public function __construct()
     {
         // handle different libuv versions
         $this->loop = function_exists('uv_loop_init') ? uv_loop_init() : uv_loop_new();
         $this->streams = new \WeakMap();
+        $this->streamCallbacks = new \WeakMap();
     }
 
     public function schedule(TaskInterface $task, int $at = null): void
@@ -370,24 +372,32 @@ class Uv implements SchedulerInterface
                 ?string $buffer = null,
             ) use ($dispatchFunction) {
                 if (!isset($this->streams[$client])) {
-                    $this->streams[$client] = $buff = new Buffer();
-
-                    $this->schedule(Task::create($dispatchFunction, [
+                    $this->streams[$client] = new Buffer();
+                    $this->streamCallbacks[$client] = Task::create($dispatchFunction, [
                         new CallbackStream(
-                            static fn (int $size) => signal(static fn (Closure $resume) => $resume($buff->read($size))),
-                            static fn () => $buff->size() > 0 ? $buff->eof() : false,
-                            static fn (string $data) => signal(static fn (Closure $resume) => uv_write(
+                            $this->streams[$client]->read(...),
+                            $this->streams[$client]->eof(...),
+                            static fn (string $data) => signal(static fn (Closure $resume) => !uv_is_closing($client) ? uv_write(
                                 $client,
                                 $data,
                                 static fn (\UVTcp | \UVPipe $r, int $status) =>
                                     $resume($status === 0 ? strlen($data) : false)
-                            )),
-                            static fn () => uv_read_stop($client),
+                            ) : $resume(false)),
+                            static fn () => !uv_is_closing($client) ? uv_close($client) : $resume(null),
                         )
-                    ]));
+                    ]);
                 }
 
-                $this->streams[$client]->write((string) $buffer);
+                $buff = $this->streams[$client];
+
+                if ($nbRead < 0) {
+                    $buff->close();
+                    uv_close($client);
+                } else {
+                    $buff->write((string) $buffer);
+                }
+
+                $this->schedule($this->streamCallbacks[$client]->spawn(false));
             });
         });
 
@@ -477,11 +487,12 @@ class Uv implements SchedulerInterface
 
                         uv_read_start(
                             $socket,
-                            static fn ($socket, $status, $buffer) =>
+                            static function ($socket, $status, $buffer) use ($buff) {
                                 match ($status) {
                                     \UV::EOF => uv_close($socket),
-                                    default => $buff->write((string) $buffer),
-                                },
+                                    default => $buff->write((string) $buffer) || var_dump($buffer),
+                                };
+                            },
                         );
                     },
                 ),
