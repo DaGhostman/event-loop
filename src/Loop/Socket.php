@@ -1,5 +1,5 @@
 <?php
-
+declare(strict_types=1);
 namespace Onion\Framework\Loop;
 
 use Onion\Framework\Loop\Descriptor;
@@ -21,10 +21,10 @@ class Socket extends Descriptor
         parent::__construct($resource);
     }
 
-    public function read(int $size, int $flags = 0): string
+    public function read(int $size, int $flags = 0): false|string
     {
         $peer = null;
-        $response = $this->secure ? parent::read($size) : stream_socket_recvfrom(
+        $response = $this->secure ? parent::read($size) : @stream_socket_recvfrom(
             $this->getResource(),
             $size,
             $flags,
@@ -42,7 +42,7 @@ class Socket extends Descriptor
 
     public function write(string $data, int $flags = 0): int
     {
-        return $this->secure ? parent::write($data) : stream_socket_sendto(
+        return $this->secure ? parent::write($data) : @stream_socket_sendto(
             $this->getResource(),
             $data,
             $flags,
