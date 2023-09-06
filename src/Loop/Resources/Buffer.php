@@ -9,62 +9,35 @@ use Onion\Framework\Loop\Interfaces\ResourceInterface;
 
 class Buffer extends Descriptor implements ResourceInterface
 {
-    private string $contents = '';
-    private int $size = 0;
-    private int $cursor = 0;
 
-    private bool $closed = false;
-    private mixed $resource = null;
-
-    public function __construct(
-        private readonly int $limit = -1
-    ) {
-
-        parent::__construct($this->resource = fopen('file://' . tempnam(sys_get_temp_dir(), 'buffer'), 'r+b'));
-    }
-
-    public function read(int $length): string|false
-    {
-        $current = substr($this->contents, $this->cursor, $length);
-        $this->cursor += strlen($current);
-        parent::read(1);
-
-        return $current;
+    public function __construct() {
+        parent::__construct(fopen('file://' . tempnam(sys_get_temp_dir(), 'buffer'), 'r+b'));
     }
 
     public function write(string $data): int|false
     {
-        rewind($this->getResource());
-        parent::write('.');
+        $cursor = $this->tell();
+        $this->seek(0, SEEK_END);
+        $result =  parent::write($data);
+        $this->seek($cursor, SEEK_SET);
 
-        $length = strlen($data);
-        if ($this->limit !== -1 && $this->limit < ($this->size + $length)) {
-            throw new \OverflowException('Buffer limit reached');
-        }
 
-        $this->contents .= $data;
-        $this->size += $length;
-
-        return $length;
+        return $result;
     }
 
     public function seek(int $position, int $whence = SEEK_SET): void
     {
-        $this->cursor = match ($whence) {
-            SEEK_SET => $position,
-            SEEK_CUR => $this->cursor + $position,
-            SEEK_END => $this->size + ($position > 0 ? ($position * -1): $position),
-        };
+        fseek($this->getResource(), $position, $whence);
     }
 
     public function tell(): int
     {
-        return $this->cursor;
+        return ftell($this->getResource());
     }
 
     public function rewind(): void
     {
-        $this->cursor = 0;
+        rewind($this->getResource());
     }
 
     // public function flush(): void
@@ -81,40 +54,13 @@ class Buffer extends Descriptor implements ResourceInterface
     //     $this->cursor = 0;
     // }
 
-    public function eof(): bool
-    {
-        return feof($this->resource);
-    }
-
     public function size(): int
     {
-        return $this->size;
+        return fstat($this->getResource())['size'] ?? -1;
     }
 
     public function __toString(): string
     {
-        return $this->contents;
-    }
-    /**
-     * Close the underlying resource
-     * @return bool Whether the operation succeeded or not
-     */
-    public function close(): bool
-    {
-        return $this->closed = true && parent::close();
-    }
-
-    /**
-     * Detaches the underlying resource from the current object and
-     * returns it, making the current object obsolete
-     */
-    public function detach(): mixed
-    {
-        $this->closed = true;
-        $this->contents = '';
-        $this->size = 0;
-        $this->cursor = 0;
-
-        return parent::detach();;
+        return stream_get_contents($this->getResource());
     }
 }
