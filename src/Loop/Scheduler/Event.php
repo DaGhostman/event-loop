@@ -17,7 +17,6 @@ use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Task;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Loop\Scheduler\Traits\{SchedulerErrorHandler, StreamNetworkUtil};
-use Onion\Framework\Loop\Resources\Buffer;
 use Throwable;
 
 use Onion\Framework\Server\Interfaces\ContextInterface as ServerContext;
@@ -26,8 +25,6 @@ use Onion\Framework\Loop\Resources\CallbackStream;
 use Closure;
 use EventSslContext;
 
-use function Onion\Framework\Loop\suspend;
-use function Onion\Framework\Loop\signal;
 use Onion\Framework\Loop\Types\NetworkProtocol;
 use Onion\Framework\Loop\Types\NetworkAddress;
 
@@ -43,6 +40,12 @@ class Event implements SchedulerInterface
     private array $tasks = [];
     private array $sockets = [];
     private array $buffers = [];
+
+
+    private array $listeners = [];
+    private array $readTasks = [];
+
+    private array $writeTasks = [];
 
     private bool $started = false;
 
@@ -100,7 +103,47 @@ class Event implements SchedulerInterface
             $task,
         ))->add($at !== null ? ($at - (hrtime(true) / 1e+3)) / 1e+6 : 0);
 
-        $this->tasks[spl_object_id($task)] = $event;
+        $this->tasks[$key] = $event;
+    }
+
+    private function triggerTasks(int $fd, int $what): void
+    {
+        if ($what & TaskEvent::READ) {
+            foreach ($this->readTasks[$fd] ?? [] as $idx => $task) {
+                if (!$task->isPersistent()) {
+                    unset($this->readTasks[$fd][$idx]);
+                }
+
+                $this->schedule($task->isPersistent() ? $task->spawn(false) : $task);
+            }
+        }
+
+        if ($what & TaskEvent::WRITE) {
+            foreach ($this->writeTasks[$fd] ?? [] as $idx => $task) {
+                if (!$task->isPersistent()) {
+                    unset($this->writeTasks[$fd][$idx]);
+                }
+
+                $this->schedule($task->isPersistent() ? $task->spawn(false) : $task);
+            }
+        }
+
+        if (count($this->readTasks[$fd] ?? []) === 0 && count($this->writeTasks[$fd] ?? []) === 0) {
+            $this->listeners[$fd]->free();
+            unset($this->listeners[$fd]);
+        }
+    }
+
+    private function register(int $fd, mixed $resource): void
+    {
+        if (!isset($this->listeners[$fd])) {
+            ($this->listeners[$fd] = new TaskEvent(
+                $this->base,
+                $resource,
+                TaskEvent::READ | TaskEvent::WRITE | TaskEvent::PERSIST | TaskEvent::ET,
+                $this->triggerTasks(...),
+            ))->add();
+        }
     }
 
     public function onRead(ResourceInterface $resource, TaskInterface $task): void
@@ -114,24 +157,8 @@ class Event implements SchedulerInterface
             return;
         }
 
-        $key = spl_object_id($task);
-
-        ($event = new TaskEvent(
-            $this->base,
-            $resource->getResource(),
-            TaskEvent::READ,
-            function ($fd, $what, TaskInterface $task) use ($key) {
-                if (!$task->isPersistent()) {
-                    $this->tasks[$key]->free();
-                    unset($this->tasks[$key]);
-                }
-
-                $this->schedule($task->spawn(false));
-            },
-            $task,
-        ))->add();
-
-        $this->tasks[$key] = $event;
+        $this->register($resource->getResourceId(), $resource->getResource());
+        $this->readTasks[$resource->getResourceId()][] = $task;
     }
 
     public function onWrite(ResourceInterface $resource, TaskInterface $task): void
@@ -145,24 +172,8 @@ class Event implements SchedulerInterface
             return;
         }
 
-        $key = spl_object_id($task);
-
-        ($event = new TaskEvent(
-            $this->base,
-            $resource->getResource(),
-            TaskEvent::WRITE,
-            function ($fd, $what, TaskInterface $task) use ($key) {
-                if (!$task->isPersistent()) {
-                    $this->tasks[$key]->free();
-                    unset($this->tasks[$key]);
-                }
-
-                $this->schedule($task->spawn(false));
-            },
-            $task,
-        ))->add();
-
-        $this->tasks[$key] = $event;
+        $this->register($resource->getResourceId(), $resource->getResource());
+        $this->writeTasks[$resource->getResourceId()][] = $task;
     }
 
     public function start(): void
@@ -219,8 +230,7 @@ class Event implements SchedulerInterface
         $context = $context?->getContextArray() ?? [];
         ($event = new EventListener(
             $this->base,
-            function ($listener, $fd, array $address, $dispatchFunction) use ($context) {
-
+            function (EventListener $listener, $fd, array $address, $dispatchFunction) use ($context) {
                 $bev = new EventBufferEvent(
                     $this->base,
                     $fd,
@@ -249,33 +259,32 @@ class Event implements SchedulerInterface
                     );
                 }
 
-                $bev->setCallbacks(function (EventBufferEvent $bev, $dispatchFunction) {
-                    $buffer = new Buffer();
-                    while ($chunk = $bev->read(65535)) {
-                        if (!$chunk) {
-                            break;
+                $closed = false;
+
+                $bev->setCallbacks(
+                    function (EventBufferEvent $bev, $dispatchFunction) {
+                        $this->schedule(Task::create($dispatchFunction, [new CallbackStream(
+                            static fn (int $size) => $bev->read($size),
+                            static function () use (&$closed) { return $closed; },
+                            static fn (string $data) => $bev->write($data) ? strlen($data) : false,
+                            function () use (&$closed) {
+                                $closed = true;
+                            },
+                            $bev->fd,
+                            $bev->fd,
+                        )]));
+                    },
+                    fn () => null,
+                    function (EventBufferEvent $bev, int $events) use (&$closed) {
+                        if ($events & EventBufferEvent::EOF) {
+                            $bev->free();
+                            $bev->close();
+                            unset($this->buffers[$bev->fd]);
+                            $closed = true;
                         }
-
-                        $buffer->write($chunk);
-                        suspend();
-                    }
-
-                    $output = new CallbackStream(
-                        $bev->read(...),
-                        fn () => $bev->getInput()->length === 0,
-                        $bev->write(...),
-                        $bev->close(...),
-                    );
-                    $this->schedule(Task::create($dispatchFunction, [$buffer, $output]));
-                },
-                fn () => null,
-                function (EventBufferEvent $bev, int $events) {
-                    if ($events & EventBufferEvent::EOF) {
-                        $bev->free();
-                        unset($this->buffers[$bev->fd]);
-                    }
-                },
-                $dispatchFunction);
+                    },
+                    $dispatchFunction
+                );
 
                 $bev->enable(TaskEvent::READ | TaskEvent::WRITE);
                 $this->buffers[$fd] = $bev;
@@ -283,7 +292,7 @@ class Event implements SchedulerInterface
             $callback,
             EventListener::OPT_CLOSE_ON_FREE | EventListener::OPT_REUSEABLE,
             -1,
-            $address,
+            "{$address}:{$port}",
         ));
 
         $this->sockets[spl_object_id($event)] = $event;
@@ -333,29 +342,25 @@ class Event implements SchedulerInterface
             );
         }
 
-        $buffer = new Buffer();
+         $closed = false;
+
         $bev->setCallbacks(
-            function (EventBufferEvent $bev) use ($buffer) {
-                while ($bev->getInput()->length > 0) {
-                    $buffer->write($bev->read(65535));
-                }
-            },
-            fn() => null,
-            function (EventBufferEvent $bev, int $events) use ($callback, $buffer) {
-                if ($events & EventBufferEvent::CONNECTED) {
-                    $this->schedule(Task::create($callback, [new CallbackStream(
-                        fn (int $size) => signal(fn (Closure $resume) =>
-                            $resume($buffer->read($size) ?? false)),
-                        fn () => $buffer->size() > 0 ? $buffer->eof() : false,
-                        fn (string $data) => signal(fn (Closure $resume) =>
-                            $resume($bev->write($data) ? strlen($data) : false)),
-                        function () use ($bev) {
-                            unset($this->buffers[$bev->fd]);
-                            $bev->free();
-                        }
-                    )]));
-                } else {
+            static fn ($bev) => null,
+            static fn ($bev) => null,
+            function (EventBufferEvent $bev, int $events, Closure $callback) use (&$closed) {
+                if ($events & EventBufferEvent::EOF) {
                     $bev->free();
+                    unset($this->buffers[$bev->fd]);
+                    $closed = true;
+                } elseif ($events & EventBufferEvent::CONNECTED) {
+                    $this->schedule(Task::create($callback, [new CallbackStream(
+                        static fn (int $size) => $bev->read($size),
+                        static function () use (&$closed) { return $closed; },
+                        static fn (string $data) => $bev->write($data) ? strlen($data) : false,
+                        $bev->free(...),
+                        $bev->fd,
+                        $bev->fd,
+                    )], false));
                 }
             },
             $callback
