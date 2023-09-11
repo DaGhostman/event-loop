@@ -7,8 +7,6 @@ namespace Onion\Framework\Loop\Resources;
 use Closure;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 
-use function Onion\Framework\Loop\suspend;
-
 class CallbackStream implements ResourceInterface
 {
     private bool $closed = false;
@@ -18,12 +16,14 @@ class CallbackStream implements ResourceInterface
         private readonly Closure $eof,
         private readonly Closure $writer,
         private readonly Closure $closer,
+        private readonly mixed $resource = null,
+        private readonly mixed $resourceId = null,
     ) {
     }
 
     public function write(string $data): int|false
     {
-        return ($this->writer)($data, $this->close(...));
+        return $this->closed ? false : ($this->writer)($data, $this->close(...));
     }
 
     /**
@@ -35,7 +35,7 @@ class CallbackStream implements ResourceInterface
      */
     public function read(int $size): false|string
     {
-        return ($this->reader)($size, $this->close(...)) ?? false;
+        return $this->closed ? false : ($this->reader)($size, $this->close(...)) ?? false;
     }
 
     /**
@@ -70,7 +70,7 @@ class CallbackStream implements ResourceInterface
 
     public function getResource(): mixed
     {
-        return null;
+        return $this->resource ?? null;
     }
 
     /**
@@ -79,7 +79,7 @@ class CallbackStream implements ResourceInterface
      */
     public function getResourceId(): int
     {
-        return -1;
+        return $this->resourceId ?? -1;
     }
 
     /**
@@ -106,5 +106,6 @@ class CallbackStream implements ResourceInterface
      */
     public function detach(): mixed
     {
+        return $this->resource;
     }
 }
