@@ -9,9 +9,12 @@ use Onion\Framework\Loop\Interfaces\ResourceInterface;
 
 class Buffer extends Descriptor implements ResourceInterface
 {
+    private readonly string $filename;
 
     public function __construct() {
-        parent::__construct(fopen('file://' . tempnam(sys_get_temp_dir(), 'buffer'), 'r+b'));
+        $this->filename = tempnam(sys_get_temp_dir(), 'buffer');
+        parent::__construct(fopen("file://{$this->filename}", 'r+b'));
+        $this->unblock();
     }
 
     public function write(string $data): int|false
@@ -62,5 +65,10 @@ class Buffer extends Descriptor implements ResourceInterface
     public function __toString(): string
     {
         return stream_get_contents($this->getResource());
+    }
+
+    public function __destruct()
+    {
+        unlink($this->filename);
     }
 }
