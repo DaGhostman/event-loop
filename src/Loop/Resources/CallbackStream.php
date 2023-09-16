@@ -44,6 +44,10 @@ class CallbackStream implements ResourceInterface
      */
     public function close(): bool
     {
+        if ($this->closed) {
+            return true;
+        }
+
         $this->closed = true;
         ($this->closer)();
 
@@ -107,5 +111,10 @@ class CallbackStream implements ResourceInterface
     public function detach(): mixed
     {
         return $this->resource;
+    }
+
+    public function __destruct()
+    {
+        $this->close();
     }
 }
