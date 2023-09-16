@@ -28,6 +28,8 @@ use EventSslContext;
 use Onion\Framework\Loop\Types\NetworkProtocol;
 use Onion\Framework\Loop\Types\NetworkAddress;
 
+use function Onion\Framework\Loop\signal;
+
 class Event implements SchedulerInterface
 {
     use SchedulerErrorHandler;
@@ -129,8 +131,10 @@ class Event implements SchedulerInterface
         }
 
         if (count($this->readTasks[$fd] ?? []) === 0 && count($this->writeTasks[$fd] ?? []) === 0) {
-            $this->listeners[$fd]->free();
-            unset($this->listeners[$fd]);
+            if (isset($this->listeners[$fd])) {
+                $this->listeners[$fd]?->free();
+                unset($this->listeners[$fd]);
+            }
         }
     }
 
@@ -264,23 +268,40 @@ class Event implements SchedulerInterface
                 $bev->setCallbacks(
                     function (EventBufferEvent $bev, $dispatchFunction) {
                         $this->schedule(Task::create($dispatchFunction, [new CallbackStream(
-                            static fn (int $size) => $bev->read($size),
-                            static function () use (&$closed) { return $closed; },
-                            static fn (string $data) => $bev->write($data) ? strlen($data) : false,
-                            function () use (&$closed) {
-                                $closed = true;
-                            },
+                            static fn (int $size) => signal(fn ($resume) => $resume($bev->fd !== null ? $bev->read($size) : false)),
+                            static fn () => $bev->fd === null,
+                            static fn (string $data) => signal(fn ($resume) => $resume($bev->fd !== null ? ($bev->write($data) ? strlen($data) : false) : false)),
+                            $bev->free(...),
                             $bev->fd,
                             $bev->fd,
                         )]));
+
+                        /**
+                         * Hack to ensure `read` picks up the current buffer
+                         * as pending read, because the current callback
+                         * gets invoked once the buffer is readable, which
+                         * is fine, but no more triggers of TaskEvent::READ
+                         * events happen until the client sends data again,
+                         * which doesn't happen when the full message is
+                         * sent in a single pass, which means that a
+                         * deadlock occurs between available data to read &
+                         * read event.
+                         */
+
+                        $this->schedule(Task::create(function ($fd, \EventBuffer $input) {
+                            if ($input->length === 0) {
+                                Task::stop();
+                                return;
+                            }
+
+                            $this->schedule(Task::create($this->triggerTasks(...), [$fd, TaskEvent::READ]));
+                        }, [$bev->fd, $bev->getInput()], true));
                     },
                     fn () => null,
-                    function (EventBufferEvent $bev, int $events) use (&$closed) {
+                    function (EventBufferEvent $bev, int $events) {
                         if ($events & EventBufferEvent::EOF) {
                             $bev->free();
-                            $bev->close();
                             unset($this->buffers[$bev->fd]);
-                            $closed = true;
                         }
                     },
                     $dispatchFunction
@@ -347,16 +368,15 @@ class Event implements SchedulerInterface
         $bev->setCallbacks(
             static fn ($bev) => null,
             static fn ($bev) => null,
-            function (EventBufferEvent $bev, int $events, Closure $callback) use (&$closed) {
+            function (EventBufferEvent $bev, int $events, Closure $callback) {
                 if ($events & EventBufferEvent::EOF) {
                     $bev->free();
                     unset($this->buffers[$bev->fd]);
-                    $closed = true;
                 } elseif ($events & EventBufferEvent::CONNECTED) {
                     $this->schedule(Task::create($callback, [new CallbackStream(
-                        static fn (int $size) => $bev->read($size),
-                        static function () use (&$closed) { return $closed; },
-                        static fn (string $data) => $bev->write($data) ? strlen($data) : false,
+                        static fn (int $size) => signal($bev->fd !== null ? fn ($resume) => $resume($bev->read($size)) : false),
+                        static fn () => $bev->fd === null,
+                        static fn (string $data) => signal(fn ($resume) => $bev->fd !== null ? ($bev->write($data) ? strlen($data) : false) : false),
                         $bev->free(...),
                         $bev->fd,
                         $bev->fd,
