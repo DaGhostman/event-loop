@@ -8,7 +8,6 @@ use Closure;
 use Onion\Framework\Client\Interfaces\ContextInterface as ClientContext;
 use Onion\Framework\Loop\Types\NetworkAddress;
 use Onion\Framework\Loop\Types\NetworkProtocol;
-use Onion\Framework\Loop\Resources\CallbackStream;
 use Onion\Framework\Loop\Socket;
 use Onion\Framework\Server\Interfaces\ContextInterface as ServerContext;
 use Onion\Framework\Loop\Descriptor;
@@ -17,7 +16,7 @@ use Onion\Framework\Loop\Interfaces\SchedulerInterface;
 use Onion\Framework\Loop\Interfaces\TaskInterface;
 use Onion\Framework\Loop\Task;
 
-use function Onion\Framework\Loop\{buffer, signal, write, read};
+use function Onion\Framework\Loop\{signal};
 
 trait StreamNetworkUtil
 {
