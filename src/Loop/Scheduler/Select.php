@@ -11,7 +11,6 @@ use Onion\Framework\Loop\Signal;
 use Onion\Framework\Loop\Task;
 use SplQueue;
 use Throwable;
-use WeakReference;
 
 class Select implements SchedulerInterface
 {
@@ -37,8 +36,8 @@ class Select implements SchedulerInterface
     private int $nextTickAt = 0;
 
     // resourceID => [socket, tasks]
-    protected array $readSockets = [];
-    protected array $writeSockets = [];
+    protected \WeakMap $readSockets;
+    protected \WeakMap $writeSockets;
 
 
     protected array $closes = [];
@@ -46,8 +45,8 @@ class Select implements SchedulerInterface
     public function __construct()
     {
         $this->queue = new SplQueue();
-        // $this->readSockets = new \WeakMap();
-        // $this->writeSockets = new \WeakMap();
+        $this->readSockets = new \WeakMap();
+        $this->writeSockets = new \WeakMap();
         $this->signals = [];
     }
 
@@ -95,13 +94,11 @@ class Select implements SchedulerInterface
             return;
         }
 
-        $socket = $resource->getResourceId();
-
-        if (isset($this->readSockets[$socket])) {
-            $this->readSockets[$socket][1][] = $task;
-        } else {
-            $this->readSockets[$socket] = [WeakReference::create($resource), [$task]];
+        if (!isset($this->readSockets[$resource])) {
+            $this->readSockets[$resource] = [];
         }
+
+        $this->readSockets[$resource][] = $task;
     }
 
     public function onWrite(ResourceInterface $resource, TaskInterface $task): void
@@ -111,13 +108,11 @@ class Select implements SchedulerInterface
             return;
         }
 
-        $socket = $resource->getResourceId();
-
-        if (isset($this->writeSockets[$socket])) {
-            $this->writeSockets[$socket][1][] = $task;
-        } else {
-            $this->writeSockets[$socket] = [$resource->getResource(), [$task]];
+        if (!isset($this->writeSockets[$resource])) {
+            $this->writeSockets[$resource] = [];
         }
+
+        $this->writeSockets[$resource][] = $task;
     }
 
     protected function tasksPoll(): void
@@ -165,27 +160,35 @@ class Select implements SchedulerInterface
     protected function ioPoll(?int $timeout): void
     {
         $rSocks = [];
-        foreach ($this->readSockets as $fd => [$socket]) {
-            /** @var WeakReference $socket */
-            $socket = $socket->get();
+        $rTasks = [];
+        $fdMap = [];
+        foreach ($this->readSockets as $socket => $tasks) {
+            /** @var ResourceInterface $socket */
+            $fd = $socket->getResourceId();
 
-            /** @var ResourceInterface|null $socket */
-            if ($socket === null) {
-                unset($this->readSockets[$fd]);
+            if ($socket->eof()) {
+                unset($this->readSockets[$socket]);
                 continue;
             }
 
             $rSocks[] = $socket->getResource();
+            $rTasks[$fd] = $tasks;
+            $fdMap[$fd] = $socket;
         }
 
         $wSocks = [];
-        foreach ($this->writeSockets as [$socket]) {
-            if (!is_resource($socket) || get_resource_type($socket) === 'Unknown' || feof($socket)) {
-                unset($this->writeSockets[get_resource_id($socket)]);
+        $wTasks = [];
+        foreach ($this->writeSockets as $socket => $tasks) {
+            $fd = $socket->getResourceId();
+
+            if ($socket->eof()) {
+                unset($this->writeSockets[$socket]);
                 continue;
             }
 
-            $wSocks[] = $socket;
+            $wSocks[] = $socket->getResource();
+            $wTasks[$fd] = $tasks;
+            $fdMap[$fd] = $socket;
         }
 
         if (PHP_OS_FAMILY === 'windows') {
@@ -212,39 +215,30 @@ class Select implements SchedulerInterface
 
         foreach ($rSocks as $socket) {
             $id = get_resource_id($socket);
-            [, $tasks] = $this->readSockets[$id];
 
-            foreach ($tasks as $idx => $task) {
-                if ($task->isKilled() || $task->isFinished()) {
-                    unset($this->readSockets[$id][1][$idx]);
-                    continue;
+            foreach ($rTasks[$fd] as $idx => $task) {
+                if (!$task->isPersistent()) {
+                    unset($rTasks[$id][$idx]);
                 }
 
                 $this->schedule($task->isPersistent() ? $task->spawn(false) : $task);
-
-                if (!$task->isPersistent()) {
-                    unset($this->readSockets[$id][1][$idx]);
-                }
             }
+
+            $this->readSockets[$fdMap[$fd]] = $rTasks[$fd];
         }
 
         foreach ($wSocks as $socket) {
             $id = get_resource_id($socket);
 
-            [, $tasks] = $this->writeSockets[$id];
-
-            foreach ($tasks as $idx => $task) {
-                if ($task->isKilled() || $task->isFinished()) {
-                    unset($this->writeSockets[$id][1][$idx]);
-                    continue;
+            foreach ($wTasks[$id] as $idx => $task) {
+                if (!$task->isPersistent()) {
+                    unset($wTasks[$fd][$idx]);
                 }
 
                 $this->schedule($task->isPersistent() ? $task->spawn(false) : $task);
-
-                if (!$task->isPersistent()) {
-                    unset($this->writeSockets[$id][1][$idx]);
-                }
             }
+
+            $this->writeSockets[$fdMap[$fd]] = $wTasks[$fd];
         }
     }
 
@@ -282,10 +276,10 @@ class Select implements SchedulerInterface
         $this->ioPoll($timeout);
 
         if (
-            !$this->readSockets &&
-            !$this->writeSockets &&
+            count($this->readSockets) === 0 &&
+            count($this->writeSockets) === 0 &&
             $this->tasks === 0 &&
-            !$this->timers
+            count($this->timers, COUNT_RECURSIVE) === 0
         ) {
             $this->started = false;
         }
