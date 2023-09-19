@@ -51,13 +51,24 @@ class Event implements SchedulerInterface
 
     private bool $started = false;
 
+    private bool $supportsLocalFiles = true;
+
     public function __construct()
     {
         $config = new EventConfig();
-        $config->requireFeatures(EventConfig::FEATURE_FDS);
-        $config->requireFeatures(EventConfig::FEATURE_O1);
+        $config->requireFeatures(EventConfig::FEATURE_FDS | EventConfig::FEATURE_ET | EventConfig::FEATURE_O1);
 
-        $this->base = new EventBase($config);
+
+        $handler = set_error_handler(fn ($errno, $err) => throw new \RuntimeException($err, $errno));
+        try {
+            $this->base = new EventBase($config);
+        } catch (\Throwable) {
+            $this->supportsLocalFiles = false;
+            $config->requireFeatures(EventConfig::FEATURE_ET | EventConfig::FEATURE_O1);
+            $this->base = new EventBase($config);
+        } finally {
+            set_error_handler($handler);
+        }
     }
 
 
@@ -132,7 +143,8 @@ class Event implements SchedulerInterface
 
         if (count($this->readTasks[$fd] ?? []) === 0 && count($this->writeTasks[$fd] ?? []) === 0) {
             if (isset($this->listeners[$fd])) {
-                $this->listeners[$fd]?->free();
+                $this->listeners[$fd] instanceof TaskInterface ?
+                    $this->listeners[$fd]->kill() :$this->listeners[$fd]?->free();
                 unset($this->listeners[$fd]);
             }
         }
@@ -140,10 +152,24 @@ class Event implements SchedulerInterface
 
     private function register(int $fd, mixed $resource): void
     {
+        if (!$this->supportsLocalFiles && !is_int($resource)) {
+            /**
+             * Necessary to have all local files & php internal streams
+             * be readable & writeable at the same time in order to prevent
+             * possible issues with `epoll` & deadlocks with `poll`
+             * Therefore all such streams are considered readable & writable
+             * at the same time
+             */
+
+            $this->listeners[$fd] = Task::create($this->triggerTasks(...), [$fd, TaskEvent::READ | TaskEvent::WRITE], persistent: true);
+            $this->schedule($this->listeners[$fd]);
+            return;
+        }
+
         if (!isset($this->listeners[$fd])) {
             ($this->listeners[$fd] = new TaskEvent(
                 $this->base,
-                $resource,
+                is_resource($resource) ? \EventUtil::getSocketFd($resource) : $resource,
                 TaskEvent::READ | TaskEvent::WRITE | TaskEvent::PERSIST | TaskEvent::ET,
                 $this->triggerTasks(...),
             ))->add();
@@ -235,6 +261,7 @@ class Event implements SchedulerInterface
         ($event = new EventListener(
             $this->base,
             function (EventListener $listener, $fd, array $address, $dispatchFunction) use ($context) {
+
                 $bev = new EventBufferEvent(
                     $this->base,
                     $fd,
@@ -263,41 +290,18 @@ class Event implements SchedulerInterface
                     );
                 }
 
-                $closed = false;
+                $this->schedule(Task::create($dispatchFunction, [new CallbackStream(
+                    static fn (int $size) => signal(fn ($resume) => $resume($bev->fd !== null ? $bev->read($size) : false)),
+                    static fn () => $bev->fd === null,
+                    static fn (string $data) => signal(fn ($resume) => $resume($bev->fd !== null ? ($bev->write($data) ? strlen($data) : false) : false)),
+                    $bev->free(...),
+                    $bev->fd,
+                    $bev->fd,
+                )]));
 
                 $bev->setCallbacks(
-                    function (EventBufferEvent $bev, $dispatchFunction) {
-                        $this->schedule(Task::create($dispatchFunction, [new CallbackStream(
-                            static fn (int $size) => signal(fn ($resume) => $resume($bev->fd !== null ? $bev->read($size) : false)),
-                            static fn () => $bev->fd === null,
-                            static fn (string $data) => signal(fn ($resume) => $resume($bev->fd !== null ? ($bev->write($data) ? strlen($data) : false) : false)),
-                            $bev->free(...),
-                            $bev->fd,
-                            $bev->fd,
-                        )]));
-
-                        /**
-                         * Hack to ensure `read` picks up the current buffer
-                         * as pending read, because the current callback
-                         * gets invoked once the buffer is readable, which
-                         * is fine, but no more triggers of TaskEvent::READ
-                         * events happen until the client sends data again,
-                         * which doesn't happen when the full message is
-                         * sent in a single pass, which means that a
-                         * deadlock occurs between available data to read &
-                         * read event.
-                         */
-
-                        $this->schedule(Task::create(function ($fd, \EventBuffer $input) {
-                            if ($input->length === 0) {
-                                Task::stop();
-                                return;
-                            }
-
-                            $this->schedule(Task::create($this->triggerTasks(...), [$fd, TaskEvent::READ]));
-                        }, [$bev->fd, $bev->getInput()], true));
-                    },
-                    fn () => null,
+                    fn (EventBufferEvent $bev) => $this->schedule(Task::create($this->triggerTasks(...), [$bev->fd, TaskEvent::READ])),
+                    fn (EventBufferEvent $bev) => $this->schedule(Task::create($this->triggerTasks(...), [$bev->fd, TaskEvent::WRITE])),
                     function (EventBufferEvent $bev, int $events) {
                         if ($events & EventBufferEvent::EOF) {
                             $bev->free();
@@ -363,11 +367,9 @@ class Event implements SchedulerInterface
             );
         }
 
-         $closed = false;
-
         $bev->setCallbacks(
-            static fn ($bev) => null,
-            static fn ($bev) => null,
+            fn (EventBufferEvent $bev) => $this->schedule(Task::create($this->triggerTasks(...), [$bev->fd, TaskEvent::READ])),
+            fn (EventBufferEvent $bev) => $this->schedule(Task::create($this->triggerTasks(...), [$bev->fd, TaskEvent::WRITE])),
             function (EventBufferEvent $bev, int $events, Closure $callback) {
                 if ($events & EventBufferEvent::EOF) {
                     $bev->free();
