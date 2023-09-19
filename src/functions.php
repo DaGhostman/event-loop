@@ -480,17 +480,6 @@ if (!function_exists(__NAMESPACE__ . '\pipe')) {
         int $chunkSize = 8192,
         bool $sync = true,
     ): void {
-        $input = $source->getResource();
-        $output = $destination->getResource();
-
-        if ($input !== null) {
-            stream_set_read_buffer($source->getResource(), 0);
-        }
-
-        if ($output !== null) {
-            stream_set_write_buffer($destination->getResource(), 0);
-        }
-
         $sync ? signal(function ($resume) use ($source, $destination, $chunkSize) {
             while (!$source->eof()) {
                 write($destination, $source->read($chunkSize));
