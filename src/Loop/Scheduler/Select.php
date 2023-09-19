@@ -214,11 +214,11 @@ class Select implements SchedulerInterface
         }
 
         foreach ($rSocks as $socket) {
-            $id = get_resource_id($socket);
+            $fd = get_resource_id($socket);
 
             foreach ($rTasks[$fd] as $idx => $task) {
                 if (!$task->isPersistent()) {
-                    unset($rTasks[$id][$idx]);
+                    unset($rTasks[$fd][$idx]);
                 }
 
                 $this->schedule($task->isPersistent() ? $task->spawn(false) : $task);
@@ -228,9 +228,9 @@ class Select implements SchedulerInterface
         }
 
         foreach ($wSocks as $socket) {
-            $id = get_resource_id($socket);
+            $fd = get_resource_id($socket);
 
-            foreach ($wTasks[$id] as $idx => $task) {
+            foreach ($wTasks[$fd] as $idx => $task) {
                 if (!$task->isPersistent()) {
                     unset($wTasks[$fd][$idx]);
                 }
