@@ -1,35 +1,22 @@
 <?php
 
-use Onion\Framework\Loop\Interfaces\ResourceInterface;
-use Onion\Framework\Loop\Interfaces\SocketInterface;
-use Onion\Framework\Loop\Socket;
-
-use function Onion\Framework\Loop\{coroutine, read, scheduler, write};
+use function Onion\Framework\Loop\{coroutine, repeat, read, scheduler, write};
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+
+scheduler(new \Onion\Framework\Loop\Scheduler\Ev());
+scheduler()->addErrorHandler(var_dump(...));
 $server = function (int $port) {
-    $socket = new Socket(stream_socket_server("tcp://0.0.0.0:{$port}"));
-    $socket->unblock();
-
-    echo "Server listening on {$port}\n";
-    while (true) {
-        read($socket, function (SocketInterface $socket) {
-            $connection = $socket->accept();
-            $connection->unblock();
-
-            if ($connection->eof()) {
-                return;
-            }
-
-            read($connection, function (ResourceInterface $descriptor) {
-                $data = $descriptor->read(8192);
-
-                write($descriptor, "HTTP/1.1 200 OK\r\n\r\nReceived: {$data}\r\n");
-                $descriptor->close();
-            });
+    echo "Listening on {$port}";
+    scheduler()->open('0.0.0.0', $port, static function ($connection) {
+        $data = read($connection, function ($conn) {
+            return $conn->read(8192);
         });
-    }
+
+        write($connection, "HTTP/1.1 200 OK\r\n\r\nReceived: {$data}\r\n\r\n");
+        $connection->close();
+    });
 };
 coroutine($server, [8080]);
 // scheduler()->start();
