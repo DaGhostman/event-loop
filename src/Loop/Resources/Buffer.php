@@ -11,7 +11,8 @@ class Buffer extends Descriptor implements ResourceInterface
 {
     private readonly string $filename;
 
-    public function __construct() {
+    public function __construct()
+    {
         $this->filename = tempnam(sys_get_temp_dir(), 'buffer');
         parent::__construct(fopen("file://{$this->filename}", 'r+b'));
         $this->unblock();
@@ -21,7 +22,7 @@ class Buffer extends Descriptor implements ResourceInterface
     {
         $cursor = $this->tell();
         $this->seek(0, SEEK_END);
-        $result =  parent::write($data);
+        $result = parent::write($data);
         $this->seek($cursor, SEEK_SET);
 
 

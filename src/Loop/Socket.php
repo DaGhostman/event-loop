@@ -61,7 +61,7 @@ class Socket extends Descriptor
     public function negotiateSecurity(
         int $method,
         mixed $seed = null,
-    ): bool | int {
+    ): bool|int {
         if (!$this->secure) {
             return false;
         }

@@ -120,10 +120,11 @@ class Ev implements SchedulerInterface
         $key = spl_object_id($task);
 
         $this->tasks[$key] = $this->loop->io(
-            $resource->getResource(),
+            $resource->getResourceId(),
             \Ev::READ,
-            function ($watcher) use ($key) {
+            function (\EvIo $watcher) use ($key) {
                 if (!$watcher->data->isPersistent()) {
+                    $watcher->stop();
                     unset($this->tasks[$key]);
                 }
 

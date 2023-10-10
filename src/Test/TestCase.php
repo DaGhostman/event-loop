@@ -22,7 +22,6 @@ class TestCase extends PhpUnitTestCase
         parent::setName($this->realTestName);
 
         scheduler(new Scheduler());
-        scheduler()->addErrorHandler($this->checkExceptionExpectations(...));
         coroutine($this->{$this->realTestName}(...), $args);
         scheduler()->start();
     }

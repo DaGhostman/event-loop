@@ -134,7 +134,7 @@ class Select implements SchedulerInterface
 
                 if ($result instanceof Signal) {
                     $this->schedule(
-                        Task::create(\Closure::fromCallable($result), [$task, $this])
+                        Task::create(\Closure::fromCallable($result), [$task, $this]),
                     );
                     continue;
                 }
@@ -305,7 +305,7 @@ class Select implements SchedulerInterface
             } else {
                 user_error(
                     'Signal handling is not supported, because it is not windows and pcntl extension is not loaded',
-                    E_USER_WARNING
+                    E_USER_WARNING,
                 );
             }
         }

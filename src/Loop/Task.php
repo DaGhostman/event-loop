@@ -122,7 +122,7 @@ class Task implements TaskInterface
         if (!isset($this->deferred)) {
             if ($this->coroutine->isTerminated()) {
                 throw new \LogicException(
-                    'Unable to create a promise for completed task'
+                    'Unable to create a promise for completed task',
                 );
             }
 
@@ -185,6 +185,6 @@ class Task implements TaskInterface
 
     public static function stop(): void
     {
-        signal(fn (Closure $resume, TaskInterface $task)  => $resume($task->kill()));
+        signal(fn(Closure $resume, TaskInterface $task) => $resume($task->kill()));
     }
 }

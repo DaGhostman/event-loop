@@ -28,50 +28,50 @@ trait StreamNetworkUtil
         int $port,
         NetworkProtocol $protocol,
         ?ServerContext $context,
-        NetworkAddress $type
+        NetworkAddress $type,
     ): ResourceInterface {
 
         $ctx = stream_context_create(array_merge([
             'socket' => [
                 'tcp_nodelay' => true,
-            ]
+            ],
         ], $context?->getContextArray() ?? []));
 
         $socket = match ($protocol) {
             NetworkProtocol::TCP => match ($type) {
-                NetworkAddress::NETWORK => stream_socket_server(
-                    "tcp://{$address}:{$port}",
-                    $errno,
-                    $error,
-                    STREAM_SERVER_BIND | STREAM_SERVER_LISTEN,
-                    $ctx,
-                ),
-                NetworkAddress::LOCAL => stream_socket_server(
-                    "unix://{$address}",
-                    $errno,
-                    $error,
-                    STREAM_SERVER_BIND | STREAM_SERVER_LISTEN,
-                    $ctx,
-                ),
-                default => throw new \InvalidArgumentException("Invalid address type provided"),
-            },
+                    NetworkAddress::NETWORK => stream_socket_server(
+                        "tcp://{$address}:{$port}",
+                        $errno,
+                        $error,
+                        STREAM_SERVER_BIND | STREAM_SERVER_LISTEN,
+                        $ctx,
+                    ),
+                    NetworkAddress::LOCAL => stream_socket_server(
+                        "unix://{$address}",
+                        $errno,
+                        $error,
+                        STREAM_SERVER_BIND | STREAM_SERVER_LISTEN,
+                        $ctx,
+                    ),
+                    default => throw new \InvalidArgumentException("Invalid address type provided"),
+                },
             NetworkProtocol::UDP => match ($type) {
-                NetworkAddress::NETWORK => stream_socket_server(
-                    "udp://{$address}",
-                    $errno,
-                    $error,
-                    STREAM_SERVER_BIND,
-                    $ctx,
-                ),
-                NetworkAddress::LOCAL => stream_socket_server(
-                    "udg://{$address}",
-                    $errno,
-                    $error,
-                    STREAM_SERVER_BIND,
-                    $ctx
-                ),
-                default => throw new \InvalidArgumentException("Invalid address type provided"),
-            },
+                    NetworkAddress::NETWORK => stream_socket_server(
+                        "udp://{$address}",
+                        $errno,
+                        $error,
+                        STREAM_SERVER_BIND,
+                        $ctx,
+                    ),
+                    NetworkAddress::LOCAL => stream_socket_server(
+                        "udg://{$address}",
+                        $errno,
+                        $error,
+                        STREAM_SERVER_BIND,
+                        $ctx,
+                    ),
+                    default => throw new \InvalidArgumentException("Invalid address type provided"),
+                },
             default => throw new \InvalidArgumentException("Invalid protocol provided"),
         };
 
@@ -89,25 +89,25 @@ trait StreamNetworkUtil
         int $port,
         NetworkProtocol $protocol,
         ?ClientContext $context,
-        NetworkAddress $type
+        NetworkAddress $type,
     ): ResourceInterface {
         $ctx = stream_context_create(array_merge([
             'socket' => [
                 'tcp_nodelay' => true,
-            ]
+            ],
         ], $context?->getContextArray() ?? []));
 
         $socket = stream_socket_client(match ($protocol) {
             NetworkProtocol::TCP => match ($type) {
-                NetworkAddress::NETWORK => "tcp://{$address}:{$port}",
-                NetworkAddress::LOCAL => "unix://{$address}",
-                default => throw new \InvalidArgumentException("Invalid address type provided"),
-            },
+                    NetworkAddress::NETWORK => "tcp://{$address}:{$port}",
+                    NetworkAddress::LOCAL => "unix://{$address}",
+                    default => throw new \InvalidArgumentException("Invalid address type provided"),
+                },
             NetworkProtocol::UDP => match ($type) {
-                NetworkAddress::NETWORK => "udp://{$address}:{$port}",
-                NetworkAddress::LOCAL => "udg://{$address}",
-                default => throw new \InvalidArgumentException("Invalid address type provided"),
-            },
+                    NetworkAddress::NETWORK => "udp://{$address}:{$port}",
+                    NetworkAddress::LOCAL => "udg://{$address}",
+                    default => throw new \InvalidArgumentException("Invalid address type provided"),
+                },
             default => throw new \InvalidArgumentException("Invalid protocol provided"),
         }, $errno, $error, 0, STREAM_CLIENT_CONNECT | STREAM_CLIENT_ASYNC_CONNECT, $ctx);
 
@@ -120,7 +120,7 @@ trait StreamNetworkUtil
 
         return signal(function ($resume, TaskInterface $task, SchedulerInterface $scheduler) use ($client) {
             $scheduler->onWrite($client, Task::create(function () use ($resume, $client) {
-                $client->negotiateSecurity(self::CLIENT_SECURITY_METHODS);
+                $client->negotiateSecurity(static::CLIENT_SECURITY_METHODS);
 
                 $resume($client);
             }));
@@ -140,7 +140,7 @@ trait StreamNetworkUtil
 
         return signal(function ($resume, TaskInterface $task, SchedulerInterface $scheduler) use ($client) {
             $scheduler->onRead($client, Task::create(function () use ($resume, $client) {
-                $client->negotiateSecurity(self::SERVER_SECURITY_METHODS);
+                $client->negotiateSecurity(static::SERVER_SECURITY_METHODS);
 
                 $resume($client);
             }));
@@ -182,7 +182,7 @@ trait StreamNetworkUtil
                 return;
             }
 
-            $this->read($connection, static fn (ResourceInterface $resource) => $callback($resource), true);
+            $this->read($connection, static fn(ResourceInterface $resource) => $callback($resource), false);
         });
 
         return stream_socket_get_name($socket->getResource(), false);
@@ -200,7 +200,7 @@ trait StreamNetworkUtil
 
         $this->write(
             $resource,
-            fn () => $callback($resource),
+            fn() => $callback($resource),
             false,
         );
     }

@@ -78,7 +78,7 @@ class Mutex implements MutexInterface
         LockType $type = LockType::EXCLUSIVE,
     ): bool {
         return signal(
-            fn (Closure $resume, TaskInterface $task) => $resume(static::lock($target, $task, $type))
+            fn(Closure $resume, TaskInterface $task) => $resume(static::lock($target, $task, $type))
         );
     }
 
@@ -86,7 +86,7 @@ class Mutex implements MutexInterface
         object $target,
     ): bool {
         return signal(
-            fn (Closure $resume, TaskInterface $task) => $resume(static::unlock($target, $task))
+            fn(Closure $resume, TaskInterface $task) => $resume(static::unlock($target, $task))
         );
     }
 }

@@ -35,7 +35,7 @@ trait SchedulerErrorHandler
             $this instanceof SchedulerInterface,
             new LogicException(
                 'Using SchedulerErrorHandler trait in a class that does not ' .
-                    'implement SchedulerInterface is invalid'
+                'implement SchedulerInterface is invalid'
             ),
         );
 

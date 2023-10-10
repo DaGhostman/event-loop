@@ -59,7 +59,7 @@ class Event implements SchedulerInterface
         $config->requireFeatures(EventConfig::FEATURE_FDS | EventConfig::FEATURE_ET | EventConfig::FEATURE_O1);
 
 
-        $handler = set_error_handler(fn ($errno, $err) => throw new \RuntimeException($err, $errno));
+        $handler = set_error_handler(fn($errno, $err) => throw new \RuntimeException($err, $errno));
         try {
             $this->base = new EventBase($config);
         } catch (\Throwable) {
@@ -114,7 +114,8 @@ class Event implements SchedulerInterface
                 }
             },
             $task,
-        ))->add($at !== null ? ($at - (hrtime(true) / 1e+3)) / 1e+6 : 0);
+        )
+        )->add($at !== null ? ($at - (hrtime(true) / 1e+3)) / 1e+6 : 0);
 
         $this->tasks[$key] = $event;
     }
@@ -144,7 +145,7 @@ class Event implements SchedulerInterface
         if (count($this->readTasks[$fd] ?? []) === 0 && count($this->writeTasks[$fd] ?? []) === 0) {
             if (isset($this->listeners[$fd])) {
                 $this->listeners[$fd] instanceof TaskInterface ?
-                    $this->listeners[$fd]->kill() :$this->listeners[$fd]?->free();
+                    $this->listeners[$fd]->kill() : $this->listeners[$fd]?->free();
                 unset($this->listeners[$fd]);
             }
         }
@@ -172,7 +173,8 @@ class Event implements SchedulerInterface
                 is_resource($resource) ? \EventUtil::getSocketFd($resource) : $resource,
                 TaskEvent::READ | TaskEvent::WRITE | TaskEvent::PERSIST | TaskEvent::ET,
                 $this->triggerTasks(...),
-            ))->add();
+            )
+            )->add();
         }
     }
 
@@ -240,7 +242,8 @@ class Event implements SchedulerInterface
                 $this->schedule($task);
             },
             $task,
-        ))->add();
+        )
+        )->add();
 
         $this->tasks[$key] = $event;
     }
@@ -291,24 +294,24 @@ class Event implements SchedulerInterface
                 }
 
                 $this->schedule(Task::create($dispatchFunction, [new CallbackStream(
-                    static fn (int $size) => signal(fn ($resume) => $resume($bev->fd !== null ? $bev->read($size) : false)),
-                    static fn () => $bev->fd === null,
-                    static fn (string $data) => signal(fn ($resume) => $resume($bev->fd !== null ? ($bev->write($data) ? strlen($data) : false) : false)),
+                    static fn(int $size) => signal(fn($resume) => $resume($bev->fd !== null ? $bev->read($size) : false)),
+                    static fn() => $bev->fd === null,
+                    static fn(string $data) => signal(fn($resume) => $resume($bev->fd !== null ? ($bev->write($data) ? strlen($data) : false) : false)),
                     $bev->free(...),
                     $bev->fd,
                     $bev->fd,
                 )]));
 
                 $bev->setCallbacks(
-                    fn (EventBufferEvent $bev) => $this->schedule(Task::create($this->triggerTasks(...), [$bev->fd, TaskEvent::READ])),
-                    fn (EventBufferEvent $bev) => $this->schedule(Task::create($this->triggerTasks(...), [$bev->fd, TaskEvent::WRITE])),
+                    fn(EventBufferEvent $bev) => $this->schedule(Task::create($this->triggerTasks(...), [$bev->fd, TaskEvent::READ])),
+                    fn(EventBufferEvent $bev) => $this->schedule(Task::create($this->triggerTasks(...), [$bev->fd, TaskEvent::WRITE])),
                     function (EventBufferEvent $bev, int $events) {
                         if ($events & EventBufferEvent::EOF) {
                             $bev->free();
                             unset($this->buffers[$bev->fd]);
                         }
                     },
-                    $dispatchFunction
+                    $dispatchFunction,
                 );
 
                 $bev->enable(TaskEvent::READ | TaskEvent::WRITE);
@@ -318,7 +321,8 @@ class Event implements SchedulerInterface
             EventListener::OPT_CLOSE_ON_FREE | EventListener::OPT_REUSEABLE,
             -1,
             "{$address}:{$port}",
-        ));
+        )
+        );
 
         $this->sockets[spl_object_id($event)] = $event;
         $event->getSocketName($addr, $p);
@@ -368,24 +372,24 @@ class Event implements SchedulerInterface
         }
 
         $bev->setCallbacks(
-            fn (EventBufferEvent $bev) => $this->schedule(Task::create($this->triggerTasks(...), [$bev->fd, TaskEvent::READ])),
-            fn (EventBufferEvent $bev) => $this->schedule(Task::create($this->triggerTasks(...), [$bev->fd, TaskEvent::WRITE])),
+            fn(EventBufferEvent $bev) => $this->schedule(Task::create($this->triggerTasks(...), [$bev->fd, TaskEvent::READ])),
+            fn(EventBufferEvent $bev) => $this->schedule(Task::create($this->triggerTasks(...), [$bev->fd, TaskEvent::WRITE])),
             function (EventBufferEvent $bev, int $events, Closure $callback) {
                 if ($events & EventBufferEvent::EOF) {
                     $bev->free();
                     unset($this->buffers[$bev->fd]);
                 } elseif ($events & EventBufferEvent::CONNECTED) {
                     $this->schedule(Task::create($callback, [new CallbackStream(
-                        static fn (int $size) => signal($bev->fd !== null ? fn ($resume) => $resume($bev->read($size)) : false),
-                        static fn () => $bev->fd === null,
-                        static fn (string $data) => signal(fn ($resume) => $bev->fd !== null ? ($bev->write($data) ? strlen($data) : false) : false),
+                        static fn(int $size) => signal($bev->fd !== null ? fn($resume) => $resume($bev->read($size)) : false),
+                        static fn() => $bev->fd === null,
+                        static fn(string $data) => signal(fn($resume) => $bev->fd !== null ? ($bev->write($data) ? strlen($data) : false) : false),
                         $bev->free(...),
                         $bev->fd,
                         $bev->fd,
                     )], false));
                 }
             },
-            $callback
+            $callback,
         );
 
         $bev->enable(TaskEvent::READ | TaskEvent::WRITE);
