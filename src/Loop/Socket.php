@@ -87,4 +87,10 @@ class Socket extends Descriptor
 
         return $negotiation;
     }
+
+    public function eof(): bool
+    {
+        return !$this->getResource() ||
+            !is_resource($this->getResource());
+    }
 }
