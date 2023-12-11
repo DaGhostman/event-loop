@@ -21,7 +21,7 @@
     "onion/promise": "@dev"
   },
   "require-dev": {
-    "phpunit/phpunit": "^9.5",
+    "phpunit/phpunit": "^10.5",
     "infection/infection": "^0.27.0",
     "vimeo/psalm": "^5.13",
     "phpspec/prophecy-phpunit": "^2.0",
